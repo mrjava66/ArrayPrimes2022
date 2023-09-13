@@ -17,6 +17,9 @@ internal static class ProgramClass
     private const ulong Two31 = Two32 / 2;
     private const ulong Two32 = (ulong)uint.MaxValue + 1;
 
+    private static DateTime _startTimeSpacer = DateTime.Now;
+    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
+
     // ReSharper disable once UnusedMember.Local
     // List of Blocks of 128*Two32 numbers (1/2T) that contain a first gap.
     // ReSharper disable once ArrangeObjectCreationWhenTypeEvident
@@ -322,6 +325,7 @@ internal static class ProgramClass
 
                 ManageTasks(tasks);
 
+                StartNewSpacer();
                 var taskE = Task.Factory.StartNew(() =>
                     ProcessNumberBlocks(fullDivisorList, minvalue, maxvalue, now));
                 tasks.Add(taskE);
@@ -345,6 +349,20 @@ internal static class ProgramClass
                 ex = ex.InnerException;
             }
         }
+    }
+
+    /// <summary>
+    /// if time since last start is long enough, go.
+    /// otherwise, wait the spacing.
+    /// </summary>
+    private static void StartNewSpacer()
+    {
+        if (_startTimeSpacer > DateTime.Now)
+        {
+            var wait = _startTimeSpacer - DateTime.Now;
+            Thread.Sleep(wait);
+        }
+        _startTimeSpacer = DateTime.Now + StartTimeSpacing;
     }
 
     /// <summary>
@@ -467,7 +485,7 @@ internal static class ProgramClass
             if (tasks.Count < _taskLimit) return;
 
             var t0 = tasks[0];
-            t0.Wait(10000);
+            t0.Wait(200);
         }
     }
 
@@ -643,7 +661,7 @@ internal static class ProgramClass
 
             const ulong divisorPosition = 7;
             PostAnvilProcess(fdl, offsets, divisorsFillPosition, divisorPosition, bytes00, grl, gapFile);
-            grl.LoudReportGap(gapFile, "AfterPostAnvilProcess"); // log how long it took to apply the other divisors
+            grl.LoudReportGap(gapFile, "AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;
             // analyze the array.
@@ -702,6 +720,7 @@ internal static class ProgramClass
 
             ManageTasks(tasks);
 
+            StartNewSpacer();
             var taskE = Task.Factory.StartNew(() =>
                 ProcessNumberBlocks(fdl, quickCheckBlock, quickCheckBlock + 1, now));
             tasks.Add(taskE);
