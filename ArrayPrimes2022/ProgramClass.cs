@@ -6,12 +6,12 @@ internal static class ProgramClass
 {
     static ProgramClass()
     {
-        Anvil = new byte[FullAnvilSize];
+        //Anvil = new byte[FullAnvilSize];
         Anvil0 = new byte[FullAnvil0Size];
     }
 
     private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
-    private const ulong FullAnvilSize = AnvilSize + Two28;
+    //private const ulong FullAnvilSize = AnvilSize + Two28;
     private const ulong FullAnvil0Size = AnvilSize * (8+1) + Two28;
 
     private const ulong Two28 = Two30 / 4;
@@ -77,7 +77,7 @@ internal static class ProgramClass
     ///     the array that holds all the possible arrangements of the first 7 divisors that we will need.
     ///     future work will allow this to cover the first 9.
     /// </summary>
-    private static readonly byte[] Anvil;
+    //private static readonly byte[] Anvil;
     private static readonly byte[] Anvil0;
 
 
@@ -105,11 +105,12 @@ internal static class ProgramClass
         //build the full list
         var dl = new[] { 2, 3, 5, 7, 11, 13, 17 , 19, 23 };
 
-        BuildAnvilOld(dl);
+        //BuildAnvilOld(dl);
 
         BuildAnvil0(dl);
     }
 
+    /*
     private static void BuildAnvilOld(int[] dl)
     {
         {
@@ -178,6 +179,7 @@ internal static class ProgramClass
             }
         }
     }
+    */
 
     private static void BuildAnvil0(int[] dl)
     {

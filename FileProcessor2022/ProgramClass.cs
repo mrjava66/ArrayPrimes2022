@@ -42,6 +42,8 @@ internal static class ProgramClass
                         try
                         {
                             var split = row.Split(',');
+                            if (split.Length < 5)
+                                continue;
                             var rowFormat = new RowFormat
                             {
                                 GapType = split[0],
