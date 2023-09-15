@@ -7,10 +7,12 @@ internal static class ProgramClass
     static ProgramClass()
     {
         Anvil = new byte[FullAnvilSize];
+        Anvil0 = new byte[FullAnvil0Size];
     }
 
     private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
     private const ulong FullAnvilSize = AnvilSize + Two28;
+    private const ulong FullAnvil0Size = AnvilSize * (8+1) + Two28;
 
     private const ulong Two28 = Two30 / 4;
     private const ulong Two30 = Two31 / 2;
@@ -26,49 +28,49 @@ internal static class ProgramClass
     private static readonly List<uint> Guided = new List<uint>
     {
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 20, 22,
-		23, 24, 25, 27, 28, 31, 32, 33, 35, 37, 40, 42, 43, 45, 48, 51, 54, 61,
-		62, 64, 69, 70, 72, 75, 77, 79, 83, 85, 86, 90, 92, 99, 104, 108, 112,
-		119, 127, 134, 142, 149, 165, 176, 177, 178, 194, 201, 202, 252, 254, 
-		260, 261, 263, 264, 280, 283, 293, 311, 313, 335, 338, 341, 344, 389, 
-		396, 397, 399, 442, 445, 464, 505, 563, 589, 741, 770, 774, 829, 854, 
-		858, 884, 904, 905, 923, 943, 994, 1008, 1149, 1219, 1224, 1233, 1321, 
-		1353, 1423, 1454, 1468, 1505, 1536, 1564, 1602, 1662, 1901, 2047, 2077,
-		2163, 2312, 2420, 2477, 2517, 2520, 2533, 2583, 2605, 2664, 2668, 2829,
-		2908, 3068, 3079, 3110, 3172, 3735, 3764, 3868, 4180, 4345, 4378, 4440,
-		4563, 4614, 4741, 4920, 5019, 5028, 5129, 5788, 6087, 6131, 6260, 6574,
-		6766, 6877, 7052, 7176, 7312, 7507, 7636, 7796, 8099, 8545, 8987, 9096,
-		9362, 9383, 9534, 9743, 10561, 11048, 11608, 12957, 13730, 13941, 
-		15363, 15963, 16206, 17168, 17267, 18278, 18634, 18862, 19101, 19420,
-		19597, 20834, 21221, 21243, 21402, 21488, 21902, 24022, 25271, 26080,
-		26548, 26726, 27202, 27493, 28195, 30210, 34069, 34788, 34892, 35295,
-		35377, 38074, 38250, 39063, 39551, 40818, 41455, 41787, 43474, 45244,
-		45504, 46362, 46751, 47319, 51422, 52100, 54270, 56513, 60417, 60551,
-		63387, 65624, 67926, 69062, 72384, 73548, 75965, 79334, 79747, 80010,
-		84122, 91666, 100682, 104958, 107146, 108862, 110216, 111866, 119781,
-		123286, 124423, 132129, 135014, 142100, 143084, 143599, 143732, 147108,
-		151198, 152201, 155164, 156689, 160234, 162288, 166036, 172452, 179054,
-		179131, 183322, 186895, 207957, 219826, 227665, 229185, 233970, 252900,
-		256360, 281198, 286015, 314260, 314457, 328368, 329313, 334095, 361774,
-		365588, 369533, 371049, 372452, 387893, 393530, 396602, 430287, 495985,
-		533808, 555529, 610829, 635567, 641232, 676599, 725924, 728034, 730196,
-		735680, 758448, 760396, 771172, 806061, 809904, 838388, 849924, 864177,
-		899769, 919106, 951795, 986641, 1039963, 1051194, 1100572, 1114498, 
-		1159029, 1228085, 1268824, 1279460, 1322554, 1333710, 1363451, 1371368,
-		1402618, 1462854, 1490871, 1534589, 1553935, 1606065, 1623134, 1777421,
-		1803010, 1817525, 1839520, 1863606, 1876290, 1877255, 1912014, 1927077,
-		1977446, 2011854, 2063602, 2075543, 2097799, 2126930, 2147047, 2161203,
-		2208470, 2422368, 2540196, 2585883, 2592374, 2602889, 2638134, 2692162,
-		2870672, 3148817, 3163255, 3271555, 3272789, 3398465, 3489889, 3554882,
-		3774529, 3978847, 4031373, 4041611, 4410519, 4793549, 4951312, 5103289,
-		5116479, 5308680, 5325360, 5342409, 5411867, 5421875, 5644781, 5855521,
-		5962680, 6242149, 6274313, 6353107, 6776163, 6823015, 6830178, 7162194,
-		7467096, 7674478, 7736211, 8111596, 8379971, 8451104, 8794567, 9119971,
-		9632352, 9845096, 9947651, 10264250, 10299605, 10300553, 10428705, 
-		11140108, 11725351, 11839395, 12347280, 12569450, 13027597, 13500439, 
-		13696202, 13728259, 13755782, 14165564, 15246808, 16348822, 17438150, 
-		17565834, 17841192, 18161148, 18378515, 20451136, 20576488, 20592223, 
-		21093154, 23075546, 23998453, 24578845, 24617240, 27194278, 27595883, 
-		28322808, 30837039, 31821539, 31931132, 32157284, 33399147
+        23, 24, 25, 27, 28, 31, 32, 33, 35, 37, 40, 42, 43, 45, 48, 51, 54, 61,
+        62, 64, 69, 70, 72, 75, 77, 79, 83, 85, 86, 90, 92, 99, 104, 108, 112,
+        119, 127, 134, 142, 149, 165, 176, 177, 178, 194, 201, 202, 252, 254,
+        260, 261, 263, 264, 280, 283, 293, 311, 313, 335, 338, 341, 344, 389,
+        396, 397, 399, 442, 445, 464, 505, 563, 589, 741, 770, 774, 829, 854,
+        858, 884, 904, 905, 923, 943, 994, 1008, 1149, 1219, 1224, 1233, 1321,
+        1353, 1423, 1454, 1468, 1505, 1536, 1564, 1602, 1662, 1901, 2047, 2077,
+        2163, 2312, 2420, 2477, 2517, 2520, 2533, 2583, 2605, 2664, 2668, 2829,
+        2908, 3068, 3079, 3110, 3172, 3735, 3764, 3868, 4180, 4345, 4378, 4440,
+        4563, 4614, 4741, 4920, 5019, 5028, 5129, 5788, 6087, 6131, 6260, 6574,
+        6766, 6877, 7052, 7176, 7312, 7507, 7636, 7796, 8099, 8545, 8987, 9096,
+        9362, 9383, 9534, 9743, 10561, 11048, 11608, 12957, 13730, 13941,
+        15363, 15963, 16206, 17168, 17267, 18278, 18634, 18862, 19101, 19420,
+        19597, 20834, 21221, 21243, 21402, 21488, 21902, 24022, 25271, 26080,
+        26548, 26726, 27202, 27493, 28195, 30210, 34069, 34788, 34892, 35295,
+        35377, 38074, 38250, 39063, 39551, 40818, 41455, 41787, 43474, 45244,
+        45504, 46362, 46751, 47319, 51422, 52100, 54270, 56513, 60417, 60551,
+        63387, 65624, 67926, 69062, 72384, 73548, 75965, 79334, 79747, 80010,
+        84122, 91666, 100682, 104958, 107146, 108862, 110216, 111866, 119781,
+        123286, 124423, 132129, 135014, 142100, 143084, 143599, 143732, 147108,
+        151198, 152201, 155164, 156689, 160234, 162288, 166036, 172452, 179054,
+        179131, 183322, 186895, 207957, 219826, 227665, 229185, 233970, 252900,
+        256360, 281198, 286015, 314260, 314457, 328368, 329313, 334095, 361774,
+        365588, 369533, 371049, 372452, 387893, 393530, 396602, 430287, 495985,
+        533808, 555529, 610829, 635567, 641232, 676599, 725924, 728034, 730196,
+        735680, 758448, 760396, 771172, 806061, 809904, 838388, 849924, 864177,
+        899769, 919106, 951795, 986641, 1039963, 1051194, 1100572, 1114498,
+        1159029, 1228085, 1268824, 1279460, 1322554, 1333710, 1363451, 1371368,
+        1402618, 1462854, 1490871, 1534589, 1553935, 1606065, 1623134, 1777421,
+        1803010, 1817525, 1839520, 1863606, 1876290, 1877255, 1912014, 1927077,
+        1977446, 2011854, 2063602, 2075543, 2097799, 2126930, 2147047, 2161203,
+        2208470, 2422368, 2540196, 2585883, 2592374, 2602889, 2638134, 2692162,
+        2870672, 3148817, 3163255, 3271555, 3272789, 3398465, 3489889, 3554882,
+        3774529, 3978847, 4031373, 4041611, 4410519, 4793549, 4951312, 5103289,
+        5116479, 5308680, 5325360, 5342409, 5411867, 5421875, 5644781, 5855521,
+        5962680, 6242149, 6274313, 6353107, 6776163, 6823015, 6830178, 7162194,
+        7467096, 7674478, 7736211, 8111596, 8379971, 8451104, 8794567, 9119971,
+        9632352, 9845096, 9947651, 10264250, 10299605, 10300553, 10428705,
+        11140108, 11725351, 11839395, 12347280, 12569450, 13027597, 13500439,
+        13696202, 13728259, 13755782, 14165564, 15246808, 16348822, 17438150,
+        17565834, 17841192, 18161148, 18378515, 20451136, 20576488, 20592223,
+        21093154, 23075546, 23998453, 24578845, 24617240, 27194278, 27595883,
+        28322808, 30837039, 31821539, 31931132, 32157284, 33399147
     };
 
     /// <summary>
@@ -76,6 +78,8 @@ internal static class ProgramClass
     ///     future work will allow this to cover the first 9.
     /// </summary>
     private static readonly byte[] Anvil;
+    private static readonly byte[] Anvil0;
+
 
     /// <summary>
     ///     The minimum value to check.
@@ -94,9 +98,19 @@ internal static class ProgramClass
     private static bool _allowQuickCheckBailout = true;
 
     /// <summary>
-    ///     All the possible arrangements of the divisors 3-17.
+    ///     All the possible arrangements of the divisors 3-23.
     /// </summary>
     private static void BuildAnvil()
+    {
+        //build the full list
+        var dl = new[] { 2, 3, 5, 7, 11, 13, 17 , 19, 23 };
+
+        BuildAnvilOld(dl);
+
+        BuildAnvil0(dl);
+    }
+
+    private static void BuildAnvilOld(int[] dl)
     {
         {
             // three works differently.  this reduces the number of memory writes to 3/8 of what 3 normally does.  Also, the memory reads are not needed.
@@ -140,9 +154,6 @@ internal static class ProgramClass
             }
         }
 
-        //build the full list
-        var dl = new[] { 2, 3, 5, 7, 11, 13, 17 }; // , 19, 23 };
-
         //2 is not processed, 3&5 are already processed, just apply 7 and up.
         for (var divisorPosition = 3; divisorPosition < dl.Length; divisorPosition++)
         {
@@ -156,7 +167,36 @@ internal static class ProgramClass
             {
                 var bib = (byte)(1 << offsetBit);
 
-                Anvil[offsetByte] |= bib;
+                if ((Anvil[offsetByte] & bib) == 0)
+                    Anvil[offsetByte] |= bib;
+
+                offsetByte += primeByte;
+                offsetBit += primeBit;
+                if (offsetBit < 8) continue;
+                offsetBit -= 8;
+                offsetByte++;
+            }
+        }
+    }
+
+    private static void BuildAnvil0(int[] dl)
+    {
+        for (var divisorPosition = 1; divisorPosition < dl.Length; divisorPosition++)
+        {
+            var p = dl[divisorPosition];
+            var primeByte = (ulong)p / 8;
+            var primeBit = p % 8;
+            //var offsetByte = (ulong)0;
+            //var offsetBit = 0;
+            var offsetByte = (ulong)(((p - 1) / 2) / 8);
+            var offsetBit = ((p - 1) / 2) % 8;
+
+            while (offsetByte < FullAnvil0Size)
+            {
+                var bib = (byte)(1 << offsetBit);
+
+                if ((Anvil0[offsetByte] & bib) == 0)
+                    Anvil0[offsetByte] |= bib;
 
                 offsetByte += primeByte;
                 offsetBit += primeBit;
@@ -195,6 +235,7 @@ internal static class ProgramClass
         else if (double.TryParse(minvalueStr, out var doubleResult)) _minvalueNumber = (ulong)doubleResult;
     }
 
+/*
     /// <summary>
     ///     returns the position in the anvil to apply to this list.
     /// </summary>
@@ -228,6 +269,7 @@ internal static class ProgramClass
 
         return retval;
     }
+*/
 
     private static Dictionary<uint, uint> GetPreviousWork()
     {
@@ -235,8 +277,8 @@ internal static class ProgramClass
         //return xd;  // enable this to ignore previous work.
         var cd = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(cd, "*.log", SearchOption.AllDirectories)
-            where f.EndsWith("log") && f.Contains("\\GapArray.")
-            select f;
+                where f.EndsWith("log") && f.Contains("\\GapArray.")
+                select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -417,24 +459,24 @@ internal static class ProgramClass
         ulong arraySize16 = baseArrayUnitSize * 16;
 
         for (var a = 0; a < baseArrayCount; a++)
-        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
-        {
-            if (arrays[a][l] == 255) continue;
-            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
-                if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (arrays[a][l] == 255) continue;
+                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+                {
+                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                fdl[++countPrimeNumber] = (uint)prime;
+                    var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                    fdl[++countPrimeNumber] = (uint)prime;
 
-                gr.ReportGap(prime, gapFile);
+                    gr.ReportGap(prime, gapFile);
 
-                //outfile.WriteLine(prime);
-                if (prime < sieveTop)
-                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                        prime); // don't need to sieve values greater than top.
+                    //outfile.WriteLine(prime);
+                    if (prime < sieveTop)
+                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                            prime); // don't need to sieve values greater than top.
+                }
             }
-        }
 
         gr.ReportGap(baseArrayCount * arraySize16, gapFile); // do an end gap.
         gapFile.Flush();
@@ -633,10 +675,11 @@ internal static class ProgramClass
             if (loopMaxCheckedValue == 0) //special code for the final block.
             {
                 loopMaxCheckedValue--; //max ulong value.
-                loopMaxDivisor = fdl[fdl.Length - 2];
+                loopMaxDivisor = fdl[^2];
             }
 
-            if (loopMaxDivisor > fdl[fdl.Length - 2]) loopMaxDivisor = fdl[fdl.Length - 2];
+            if (loopMaxDivisor > fdl[^2])
+                loopMaxDivisor = fdl[^2];
 
             while (divisorFillLevel < loopMaxDivisor)
             {
@@ -655,11 +698,23 @@ internal static class ProgramClass
             //the anvil process does not maintain these values, they need to be recalculated every loop.
             for (ulong i = 1; i < 7; i++) PopulateDivisor(fdl, offsetsAnvil, loopMinCheckedValue, i);
 
-            var offset = GetAnvilPosition(offsetsAnvil);
-            Buffer.BlockCopy(Anvil, offset, bytes00, 0, (int)Two28);
+            //var offset = GetAnvilPosition(offsetsAnvil);
+            //const ulong modX = 3 * 5 * 7 * 11 * 13 * 17;
+            var notOffset = (loopMinCheckedValue / 2) % AnvilSize;
+            while (notOffset % 8 != 0)
+                notOffset += AnvilSize;
+            notOffset /= 8;
+            //Console.WriteLine($"{offset}:{notOffset}:{modX}");
+            //Buffer.BlockCopy(Anvil, offset, bytes00, 0, (int)Two28);
+            //var bytes000 = new byte[Two28];
+            Buffer.BlockCopy(Anvil0, (int)notOffset, bytes00, 0, (int)Two28);
+            //var cmp=ArrayCompare(bytes00, bytes000);
+            //bytes000 = null;
+            //GC.Collect();
+            //Console.WriteLine($"compare={cmp}");
             grl.LoudReportGap(gapFile, "AfterBlockCopy"); // log how long it takes to put in the anvil.
 
-            const ulong divisorPosition = 7;
+            const ulong divisorPosition = 9;
             PostAnvilProcess(fdl, offsets, divisorsFillPosition, divisorPosition, bytes00, grl, gapFile);
             grl.LoudReportGap(gapFile, "AfterSieve"); // log how long it took to apply the other divisors
 
@@ -733,7 +788,8 @@ internal static class ProgramClass
         }
 
         Console.WriteLine("Done with quickCheck.  Press key to continue.");
-        if (Console.KeyAvailable) Console.ReadKey();
+        if (Console.KeyAvailable)
+            Console.ReadKey();
     }
 
     // ReSharper disable StringLiteralTypo
@@ -754,19 +810,19 @@ internal static class ProgramClass
     // ReSharper restore CommentTypo
     // ReSharper restore IdentifierTypo
     /*
-            private static bool ArrayCompare<T>(IReadOnlyList<T> array1, IReadOnlyList<T> array2)
-            {
-                if (array1 == null && array2 == null) return true;  //if both null, true, equal.
-                if (array1 == null || array2 == null) return false; //if one is null, false, not equal.
-                if (array1.Count != array2.Count) return false; // if lengths are not equal, false, not equal.
-                for (var i = 0; i < array1.Count; i++)
-                {
-                    if (array1[i].Equals(array2[i])) continue;
-                    Console.WriteLine("unequal at {0} with {1},{2}", i, array1[i], array2[i]);
-                    return false;  // this element is not equal, not equal.
-                }
-                return true;
-            }
+    private static bool ArrayCompare<T>(IReadOnlyList<T> array1, IReadOnlyList<T> array2)
+    {
+        if (array1 == null && array2 == null) return true;  //if both null, true, equal.
+        if (array1 == null || array2 == null) return false; //if one is null, false, not equal.
+        if (array1.Count != array2.Count) return false; // if lengths are not equal, false, not equal.
+        for (var i = 0; i < array1.Count; i++)
+        {
+            if (array1[i].Equals(array2[i])) continue;
+            Console.WriteLine("unequal at {0} with {1},{2}", i, array1[i], array2[i]);
+            return false;  // this element is not equal, not equal.
+        }
+        return true;
+    }
     */
     /*
             private static void FindAnvilPosition(byte[] bytes0, uint[] offsets)
@@ -823,6 +879,7 @@ internal static class ProgramClass
         }
 
         //wait for them to end.
-        foreach (var task in tasks) task.Wait();
+        foreach (var task in tasks)
+            task.Wait();
     }
 }
