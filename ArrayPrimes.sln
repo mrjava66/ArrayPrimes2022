@@ -11,7 +11,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArrayPrimesTest", "ArrayPri
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileProcessor2022", "FileProcessor2022\FileProcessor2022.csproj", "{2D699D63-CB7A-41E1-BA99-C83F41F47EE0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArrayPrimes2022", "ArrayPrimes2022\ArrayPrimes2022.csproj", "{EFE57EE7-58A5-4873-8B15-6429B0B87051}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ArrayPrimes2022", "ArrayPrimes2022\ArrayPrimes2022.csproj", "{EFE57EE7-58A5-4873-8B15-6429B0B87051}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestPrime", "TestPrime\TestPrime.csproj", "{0F786697-EE70-4D5B-81D4-C66263DC6430}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +41,10 @@ Global
 		{EFE57EE7-58A5-4873-8B15-6429B0B87051}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EFE57EE7-58A5-4873-8B15-6429B0B87051}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EFE57EE7-58A5-4873-8B15-6429B0B87051}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F786697-EE70-4D5B-81D4-C66263DC6430}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F786697-EE70-4D5B-81D4-C66263DC6430}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F786697-EE70-4D5B-81D4-C66263DC6430}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F786697-EE70-4D5B-81D4-C66263DC6430}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
