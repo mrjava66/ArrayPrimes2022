@@ -11,8 +11,9 @@ internal static class ProgramClass
     }
 
     private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
+
     //private const ulong FullAnvilSize = AnvilSize + Two28;
-    private const ulong FullAnvil0Size = AnvilSize * (8+1) + Two28;
+    private const ulong FullAnvil0Size = AnvilSize * (8 + 1) + Two28;
 
     private const ulong Two28 = Two30 / 4;
     private const ulong Two30 = Two31 / 2;
@@ -80,7 +81,6 @@ internal static class ProgramClass
     //private static readonly byte[] Anvil;
     private static readonly byte[] Anvil0;
 
-
     /// <summary>
     ///     The minimum value to check.
     /// </summary>
@@ -97,13 +97,15 @@ internal static class ProgramClass
 
     private static bool _allowQuickCheckBailout = true;
 
+    private static bool _reverse;
+
     /// <summary>
     ///     All the possible arrangements of the divisors 3-23.
     /// </summary>
     private static void BuildAnvil()
     {
         //build the full list
-        var dl = new[] { 2, 3, 5, 7, 11, 13, 17 , 19, 23 };
+        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23 };
 
         //BuildAnvilOld(dl);
 
@@ -190,8 +192,8 @@ internal static class ProgramClass
             var primeBit = p % 8;
             //var offsetByte = (ulong)0;
             //var offsetBit = 0;
-            var offsetByte = (ulong)(((p - 1) / 2) / 8);
-            var offsetBit = ((p - 1) / 2) % 8;
+            var offsetByte = (ulong)((p - 1) / 2 / 8);
+            var offsetBit = (p - 1) / 2 % 8;
 
             while (offsetByte < FullAnvil0Size)
             {
@@ -225,6 +227,11 @@ internal static class ProgramClass
 
         _quickCheck = ConfigurationManager.AppSettings["QuickCheck"] ?? "";
 
+        var reverseStr = ConfigurationManager.AppSettings["Reverse"] ?? "true";
+        var didParseReverse = bool.TryParse(reverseStr, out var reverse);
+        // ReSharper disable once SimplifyConditionalTernaryExpression
+        _reverse = didParseReverse ? reverse : true;
+
         var allowQuickCheckBailout = ConfigurationManager.AppSettings["AllowQuickCheckBailout"] ?? "true";
         var didParse = bool.TryParse(allowQuickCheckBailout, out var val);
         // ReSharper disable once SimplifyConditionalTernaryExpression
@@ -237,41 +244,41 @@ internal static class ProgramClass
         else if (double.TryParse(minvalueStr, out var doubleResult)) _minvalueNumber = (ulong)doubleResult;
     }
 
-/*
-    /// <summary>
-    ///     returns the position in the anvil to apply to this list.
-    /// </summary>
-    /// <returns></returns>
-    private static int GetAnvilPosition(IReadOnlyList<uint> offsets)
-    {
-        // ReSharper disable once JoinDeclarationAndInitializer
-        int retval;
+    /*
+        /// <summary>
+        ///     returns the position in the anvil to apply to this list.
+        /// </summary>
+        /// <returns></returns>
+        private static int GetAnvilPosition(IReadOnlyList<uint> offsets)
+        {
+            // ReSharper disable once JoinDeclarationAndInitializer
+            int retval;
 
-        //retval = (offsets[1]*(2*5)+offsets[2]*(1*3))%(3*5);
-        //retval = (((int)offsets[1] * (2*5*7)) + ((int)offsets[2] * (3*3*7)) + ((int)offsets[3] * (6*3*5))) % (3 * 5 * 7);
-        //retval = ((int)(offsets[1] * (1 * 5 * 7 * 11) + offsets[2] * (3 * 3 * 7 * 11) + offsets[3] * (5 * 3 * 5 * 11) + offsets[4] * (8 * 3 * 5 * 7)) % (3 * 5 * 7 * 11));
-        //retval = (int)(
-        //             offsets[1] * (1 * 5 * 7 * 11 * 13) +
-        //             offsets[2] * (1 * 3 * 7 * 11 * 13) +
-        //             offsets[3] * (2 * 3 * 5 * 11 * 13) +
-        //             offsets[4] * (4 * 3 * 5 * 7 * 13) +
-        //             offsets[5] * (9 * 3 * 5 * 7 * 11) +
-        //             0
-        //         ) % (3 * 5 * 7 * 11 * 13);
+            //retval = (offsets[1]*(2*5)+offsets[2]*(1*3))%(3*5);
+            //retval = (((int)offsets[1] * (2*5*7)) + ((int)offsets[2] * (3*3*7)) + ((int)offsets[3] * (6*3*5))) % (3 * 5 * 7);
+            //retval = ((int)(offsets[1] * (1 * 5 * 7 * 11) + offsets[2] * (3 * 3 * 7 * 11) + offsets[3] * (5 * 3 * 5 * 11) + offsets[4] * (8 * 3 * 5 * 7)) % (3 * 5 * 7 * 11));
+            //retval = (int)(
+            //             offsets[1] * (1 * 5 * 7 * 11 * 13) +
+            //             offsets[2] * (1 * 3 * 7 * 11 * 13) +
+            //             offsets[3] * (2 * 3 * 5 * 11 * 13) +
+            //             offsets[4] * (4 * 3 * 5 * 7 * 13) +
+            //             offsets[5] * (9 * 3 * 5 * 7 * 11) +
+            //             0
+            //         ) % (3 * 5 * 7 * 11 * 13);
 
-        retval = (int)(
-            offsets[1] * (2 * 5 * 7 * 11 * 13 * 17) +
-            offsets[2] * (3 * 3 * 7 * 11 * 13 * 17) +
-            offsets[3] * (3 * 3 * 5 * 11 * 13 * 17) +
-            offsets[4] * (8 * 3 * 5 * 7 * 13 * 17) +
-            offsets[5] * (12 * 3 * 5 * 7 * 11 * 17) +
-            offsets[6] * (9 * 3 * 5 * 7 * 11 * 13) +
-            0
-        ) % (3 * 5 * 7 * 11 * 13 * 17);
+            retval = (int)(
+                offsets[1] * (2 * 5 * 7 * 11 * 13 * 17) +
+                offsets[2] * (3 * 3 * 7 * 11 * 13 * 17) +
+                offsets[3] * (3 * 3 * 5 * 11 * 13 * 17) +
+                offsets[4] * (8 * 3 * 5 * 7 * 13 * 17) +
+                offsets[5] * (12 * 3 * 5 * 7 * 11 * 17) +
+                offsets[6] * (9 * 3 * 5 * 7 * 11 * 13) +
+                0
+            ) % (3 * 5 * 7 * 11 * 13 * 17);
 
-        return retval;
-    }
-*/
+            return retval;
+        }
+    */
 
     private static Dictionary<uint, uint> GetPreviousWork()
     {
@@ -279,8 +286,8 @@ internal static class ProgramClass
         //return xd;  // enable this to ignore previous work.
         var cd = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(cd, "*.log", SearchOption.AllDirectories)
-                where f.EndsWith("log") && f.Contains("\\GapArray.")
-                select f;
+            where f.EndsWith("log") && f.Contains("\\GapArray.")
+            select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -347,6 +354,22 @@ internal static class ProgramClass
             QuickCheck(fullDivisorList, now, xd);
             var minBlock = (uint)(_minvalueNumber / (Two32 * blockAssignmentSize));
 
+            if (_reverse)
+                for (var value = uint.MaxValue; value > 0; value--)
+                {
+                    if (xd.Keys.Contains(value))
+                        continue;
+
+                    ManageTasks(tasks);
+
+                    StartNewSpacer();
+                    var val = value;
+                    var taskE = Task.Factory.StartNew(() =>
+                        ProcessNumberBlocks(fullDivisorList, val, val + 1, now));
+                    tasks.Add(taskE);
+                    xd.TryAdd(val, val);
+                }
+
             for (var runBlock = firstBlock; runBlock < lastBlock; runBlock++)
             {
                 if (runBlock < minBlock) continue;
@@ -396,8 +419,8 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    /// if time since last start is long enough, go.
-    /// otherwise, wait the spacing.
+    ///     if time since last start is long enough, go.
+    ///     otherwise, wait the spacing.
     /// </summary>
     private static void StartNewSpacer()
     {
@@ -406,6 +429,7 @@ internal static class ProgramClass
             var wait = _startTimeSpacer - DateTime.Now;
             Thread.Sleep(wait);
         }
+
         _startTimeSpacer = DateTime.Now + StartTimeSpacing;
     }
 
@@ -461,24 +485,24 @@ internal static class ProgramClass
         ulong arraySize16 = baseArrayUnitSize * 16;
 
         for (var a = 0; a < baseArrayCount; a++)
-            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        {
+            if (arrays[a][l] == 255) continue;
+            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
             {
-                if (arrays[a][l] == 255) continue;
-                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
-                {
-                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                    fdl[++countPrimeNumber] = (uint)prime;
+                var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                fdl[++countPrimeNumber] = (uint)prime;
 
-                    gr.ReportGap(prime, gapFile);
+                gr.ReportGap(prime, gapFile);
 
-                    //outfile.WriteLine(prime);
-                    if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                            prime); // don't need to sieve values greater than top.
-                }
+                //outfile.WriteLine(prime);
+                if (prime < sieveTop)
+                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                        prime); // don't need to sieve values greater than top.
             }
+        }
 
         gr.ReportGap(baseArrayCount * arraySize16, gapFile); // do an end gap.
         gapFile.Flush();
@@ -702,7 +726,7 @@ internal static class ProgramClass
 
             //var offset = GetAnvilPosition(offsetsAnvil);
             //const ulong modX = 3 * 5 * 7 * 11 * 13 * 17;
-            var notOffset = (loopMinCheckedValue / 2) % AnvilSize;
+            var notOffset = loopMinCheckedValue / 2 % AnvilSize;
             while (notOffset % 8 != 0)
                 notOffset += AnvilSize;
             notOffset /= 8;
@@ -772,8 +796,7 @@ internal static class ProgramClass
                     continue;
             }
 
-            if (!xd.ContainsKey(quickCheckBlock))
-                xd.Add(quickCheckBlock, quickCheckBlock);
+            xd.TryAdd(quickCheckBlock, quickCheckBlock);
 
             ManageTasks(tasks);
 
