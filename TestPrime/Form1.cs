@@ -4,11 +4,10 @@ namespace TestPrime;
 
 public partial class Form1 : Form
 {
-    private static readonly List<int> ListAllPrimes = new() { 2, 3, 5 };
-
     public Form1()
     {
         InitializeComponent();
+        MakePrimes.MakePrimesTask();
     }
 
     private void button1_Click(object sender, EventArgs e)
@@ -17,24 +16,29 @@ public partial class Form1 : Form
         {
             var didStart = ulong.TryParse(textBox1.Text, out var start);
             var didLen = ulong.TryParse(textBox2.Text, out var len);
+            if (!didStart || !didLen) 
+                throw new Exception("Must Provide Numbers");
+            var end = start + len;
             var numNotFound = 0;
             textBox3.Text = "";
             var line = new StringBuilder();
-            var lastP = Math.Sqrt(start + len);
-            for (var check = start; check < start + len; check += 2)
+            var lastP = Math.Sqrt(end);
+            var lastP3 = Math.Pow(end, 1.0 / 3.0); // if first divisible prime is > num^1/3, then value is semi-prime.
+
+            for (var check = start; check <= end; check += 2)
             {
                 line.Append($"{Environment.NewLine}{check}:");
                 var found = false;
-                var pNum = 0;
-                foreach (var p in AllPrimes())
+                //var pNum = 0;
+                var somePrimes = MakePrimes.ArrayAllPrimes;
+                foreach (var p in somePrimes)
                 {
-                    pNum++;
-                    if (pNum > 8123123) break;
-                    if (p > lastP) 
+                    if (p > lastP)
                         break;
-
-                    var mod = check % (ulong)p;
+                    var mod = check % p;
                     if (mod != 0) continue;
+                    if (p > lastP3)
+                        line.Append("semi-prime:");
                     line.Append($"{p}:{mod}::");
                     found = true;
                     break;
@@ -56,32 +60,18 @@ public partial class Form1 : Form
         }
     }
 
-    public static IEnumerable<int> AllPrimes()
+    private void button2_Click(object sender, EventArgs e)
     {
-        foreach (var prime in ListAllPrimes) yield return prime;
-        var i = ListAllPrimes[ListAllPrimes.Count - 1];
-        while (true)
+        try
         {
-            i++;
-            var j = Math.Sqrt(i);
-            foreach (var k in AllPrimes())
-            {
-                if (i % k == 0)
-                    //if i is evenly divisible by k, this is not a prime, check the next number.
-                    break;
-                if (k > j)
-                {
-                    //if none of primes less than the square root of i are evenly divisible, this is a prime.
-                    ListAllPrimes.Add(i);
-                    yield return i;
-                    break;
-                }
-            }
+            var count = MakePrimes.NumPrimes;
+            var prime = MakePrimes.ArrayAllPrimes[^1];
+            // ReSharper disable once LocalizableElement
+            label3.Text = $"Staged to {Environment.NewLine}{count}:{Environment.NewLine}{prime}";
         }
-    }
-
-    private void textBox2_TextChanged(object sender, EventArgs e)
-    {
-
+        catch (Exception exception)
+        {
+            MessageBox.Show(exception.Message);
+        }
     }
 }
