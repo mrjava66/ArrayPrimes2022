@@ -5,6 +5,7 @@ public static class MakePrimes
     private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5 };
 
     public static ulong[] ArrayAllPrimes => ListAllPrimes.ToArray();
+    public static Dictionary<ulong, ulong> DictAllPrimes => ArrayAllPrimes.ToDictionary(x=>x,x=>x);
     public static int NumPrimes => ListAllPrimes.Count;
 
     public static void MakePrimesTask()
@@ -61,6 +62,7 @@ public static class MakePrimes
                     }
                     catch (Exception)
                     {
+                        yield break;
                         //Console.WriteLine(e);
                     }
 
@@ -70,6 +72,5 @@ public static class MakePrimes
             }
         }
         //there is no last prime.
-        // ReSharper disable once IteratorNeverReturns
     }
 }
