@@ -11,6 +11,7 @@ internal static class ProgramClass
     }
 
     private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
+    private const ulong AnvilSize2 = 29 * 31 * 37 * 41 * 43;
 
     //private const ulong FullAnvilSize = AnvilSize + Two28;
     private const ulong FullAnvil0Size = AnvilSize * (8 + 1) + Two28;
@@ -618,7 +619,12 @@ internal static class ProgramClass
                 offsetByte++;
             }
 
-            offsets[divisorPosition] = (offsetByte - (uint)Two28) * 8 + (uint)offsetBit;
+            var ndp = (offsetByte - Two28) * 8 + (ulong)offsetBit;
+            if (ndp > uint.MaxValue)
+            {
+                Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
+            }
+            offsets[divisorPosition] = (uint)ndp;
         }
 
         gr.LoudReportGap(sw, "AfterFirstBlock");
@@ -649,7 +655,12 @@ internal static class ProgramClass
                 offsetByte++;
             }
 
-            offsets[divisorPosition] = (offsetByte - (uint)Two28) * 8 + (uint)offsetBit;
+            var ndp = (offsetByte - Two28) * 8 + (ulong)offsetBit;
+            if (ndp > uint.MaxValue)
+            {
+                Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
+            }
+            offsets[divisorPosition] = (uint)ndp;
         }
     }
 
