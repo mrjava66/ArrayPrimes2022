@@ -10,6 +10,8 @@ internal static class ProgramClass
         Anvil0 = new byte[FullAnvil0Size];
     }
 
+    private static string _basePath = "";
+
     private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
     private const ulong AnvilSize2 = 29 * 31 * 37 * 41 * 43;
 
@@ -125,7 +127,7 @@ internal static class ProgramClass
             // ReSharper restore InconsistentNaming
             byte[] byte3 = { byte3_0, byte3_1, byte3_2 };
             ulong oByte = 0;
-            var obit = 0;
+            var obit = 1;
 
             while (oByte < FullAnvilSize)
             {
@@ -147,7 +149,7 @@ internal static class ProgramClass
             // ReSharper restore InconsistentNaming
             byte[] byte5 = { byte5_0, byte5_1, byte5_2, byte5_3, byte5_4 };
             ulong oByte = 0;
-            var obit = 0;
+            var obit = 2;
 
             while (oByte < FullAnvilSize)
             {
@@ -214,6 +216,10 @@ internal static class ProgramClass
 
     private static void ConfigureSystem()
     {
+        _basePath = ConfigurationManager.AppSettings["basePath"] ?? "";
+        if (!string.IsNullOrWhiteSpace(_basePath) && !_basePath.EndsWith("\\"))
+            _basePath += "\\";
+
         var taskLimit = ConfigurationManager.AppSettings["taskLimit"];
 
         if (int.TryParse(taskLimit, out var taskLimitInt))
@@ -285,10 +291,11 @@ internal static class ProgramClass
     {
         var xd = new Dictionary<uint, uint> { { 0, 0 } };
         //return xd;  // enable this to ignore previous work.
-        var cd = Directory.GetCurrentDirectory();
-        var x = from f in Directory.EnumerateFiles(cd, "*.log", SearchOption.AllDirectories)
-            where f.EndsWith("log") && f.Contains("\\GapArray.")
-            select f;
+        if (string.IsNullOrWhiteSpace(_basePath))
+            _basePath = Directory.GetCurrentDirectory();
+        var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
+                where f.EndsWith("log") && f.Contains("\\GapArray.")
+                select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -447,7 +454,7 @@ internal static class ProgramClass
     private static void MakeBaseArrays(uint[] fdl, string now)
     {
         //var outfile = new StreamWriter("ThreadPrimes.log", false);
-        var gapFile = new StreamWriter("GapPrimes.0." + now + ".log", false);
+        var gapFile = new StreamWriter(_basePath + "GapPrimes.0." + now + ".log", false);
 
         var goal = ulong.MaxValue; // the final value to get.
         var divisorArrayMax =
@@ -486,29 +493,29 @@ internal static class ProgramClass
         ulong arraySize16 = baseArrayUnitSize * 16;
 
         for (var a = 0; a < baseArrayCount; a++)
-        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
-        {
-            if (arrays[a][l] == 255) continue;
-            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
-                if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (arrays[a][l] == 255) continue;
+                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+                {
+                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                fdl[++countPrimeNumber] = (uint)prime;
+                    var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                    fdl[++countPrimeNumber] = (uint)prime;
 
-                gr.ReportGap(prime, gapFile);
+                    gr.ReportGap(prime, gapFile);
 
-                //outfile.WriteLine(prime);
-                if (prime < sieveTop)
-                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                        prime); // don't need to sieve values greater than top.
+                    //outfile.WriteLine(prime);
+                    if (prime < sieveTop)
+                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                            prime); // don't need to sieve values greater than top.
+                }
             }
-        }
 
         gr.ReportGap(baseArrayCount * arraySize16, gapFile); // do an end gap.
         gapFile.Flush();
 
-        var gapsFile = new StreamWriter("GapArray.0." + now + ".log", false);
+        var gapsFile = new StreamWriter(_basePath + "GapArray.0." + now + ".log", false);
         gr.ReportGaps(gapsFile);
     }
 
@@ -619,7 +626,7 @@ internal static class ProgramClass
                 offsetByte++;
             }
 
-            var ndp = (offsetByte - Two28) * 8 + (ulong)offsetBit;
+            var ndp = (((ulong)offsetByte) - Two28) * ((ulong)8) + (ulong)offsetBit;
             if (ndp > uint.MaxValue)
             {
                 Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
@@ -655,7 +662,7 @@ internal static class ProgramClass
                 offsetByte++;
             }
 
-            var ndp = (offsetByte - Two28) * 8 + (ulong)offsetBit;
+            var ndp = (((ulong)offsetByte) - Two28) * ((ulong)8) + (ulong)offsetBit;
             if (ndp > uint.MaxValue)
             {
                 Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
@@ -724,9 +731,8 @@ internal static class ProgramClass
                 divisorsFillPosition++;
             }
 
-            var gapFile = new StreamWriter("GapPrimes." + a + "." + now + ".log", false);
-            grl.LoudReportGap(gapFile,
-                "AfterNewStreamWriter"); // log how long it took to maintain/grow the divisor offsets.
+            var gapFile = new StreamWriter(_basePath + "GapPrimes." + a + "." + now + ".log", false);
+            grl.LoudReportGap(gapFile, "AfterNewStreamWriter"); // log how long it took to maintain/grow the divisor offsets.
 
             //// markup the array. (use the divisor array, update the divisor array)
             var bytes00 = new byte[Two28];
@@ -781,7 +787,7 @@ internal static class ProgramClass
             gapFile.Flush();
 
             // report on the array.
-            var gapsFile = new StreamWriter("GapArray." + a + "." + now + ".log", false);
+            var gapsFile = new StreamWriter(_basePath + "GapArray." + a + "." + now + ".log", false);
             grl.ReportGaps(gapsFile);
         }
     }
