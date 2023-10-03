@@ -1,4 +1,5 @@
 ﻿using System.Configuration;
+using FileProcessor2022;
 
 internal static class ProgramClass
 {
@@ -10,6 +11,7 @@ internal static class ProgramClass
         {
             var startTime = DateTime.Now;
             var allRows = new Dictionary<int, RowFormat>();
+            var allReps = new Dictionary<(int,int), RepFormat>();
             var folder = ConfigurationManager.AppSettings["Folder"];
             var fileMask = ConfigurationManager.AppSettings["FileMask"];
             if (string.IsNullOrWhiteSpace(folder))
@@ -38,57 +40,80 @@ internal static class ProgramClass
                 {
                     //Console.WriteLine("Reading From '" + file + "'");
                     var rows = new List<RowFormat>();
+                    var repRows = new List<RepFormat>();
                     foreach (var row in File.ReadAllLines(file))
                         try
                         {
                             var split = row.Split(',');
                             if (split.Length < 5)
                                 continue;
-                            var rowFormat = new RowFormat
+                            var gapType = split[0];
+                            if (gapType == "1st Gap")
                             {
-                                GapType = split[0],
-                                GapSize = int.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
-                                Primes = split[2],
-                                EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
-                                StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
-                                When = decimal.TryParse(split[5], out var when) ? when : 0
-                            };
-                            rows.Add(rowFormat);
+                                var rowFormat = new RowFormat
+                                {
+                                    GapType = split[0],
+                                    GapSize = int.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
+                                    Primes = split[2],
+                                    EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
+                                    StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
+                                    When = decimal.TryParse(split[5], out var when) ? when : 0
+                                };
+                                rows.Add(rowFormat);
+                            }
+
+                            if (gapType == "1st Rep")
+                            {
+                                var repFormat = new RepFormat
+                                {
+                                    GapType = split[0],
+                                    Repeat = int.TryParse(split[1], out var repeat) ? repeat : 0,
+                                    GapSize = int.TryParse(split[2], out var lineGapSize) ? lineGapSize : 0,
+                                    EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
+                                    StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
+                                    When = decimal.TryParse(split[5], out var when) ? when : 0
+                                };
+                                repRows.Add(repFormat);
+                            }
                         }
                         catch (Exception e)
                         {
                             Console.Error.WriteLine(e);
                         }
 
-                    decimal lastWhen = 0;
+                    foreach (var repRow in repRows)
+                    {
+                        var didGet = allReps.TryGetValue((repRow.Repeat, repRow.GapSize), out var rep);
+                        if (!didGet || rep is null)
+                        {
+                            allReps.Add((repRow.Repeat, repRow.GapSize),repRow);
+                        }
+                        else if (rep.StartPrime > repRow.StartPrime)
+                        {
+                            allReps.Remove((repRow.Repeat, repRow.GapSize));
+                            allReps.Add((repRow.Repeat, repRow.GapSize), repRow);
+                        }
+                    }
 
+                    decimal lastWhen = 0;
                     foreach (var row in rows)
                     {
                         lastWhen = row.When;
                         if (row.GapSize % 2 == 1) continue; // not interested in odds.(beginning and end gaps)
 
-                        //var cr = allRows.FirstOrDefault(a => a.GapSize == row.GapSize);
                         var didGet = allRows.TryGetValue(row.GapSize, out var cr);
-
-                        if (!didGet)
+                        if (!didGet || cr is null)
                         {
                             //we have not seen a gap of this size before, add it to the list.
                             allRows.Add(row.GapSize, row);
                         }
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
                         else if (cr.StartPrime > row.StartPrime)
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
                         {
                             //we have seen a gap of this size before, but it was at a higher value.
                             //remove the old one, and put in the new one.
                             allRows.Remove(row.GapSize);
                             allRows.Add(row.GapSize, row);
                         }
-                        //else
-                        //{
-                        //keep cr
-                        //don't all row
-                        //}
                     }
 
                     totalTime += lastWhen;
@@ -104,6 +129,17 @@ internal static class ProgramClass
 
                     Console.Error.WriteLine("Continuing to the next file.");
                 }
+
+            foreach (var keyTuple in allReps.Keys.OrderBy(num => num.Item1 * 2000 + num.Item2))
+            {
+                var didGet = allReps.TryGetValue(keyTuple, out var val);
+                if (didGet && val is not null)
+                {
+                    var startPrime = val.EndPrime - (ulong)(val.Repeat * val.GapSize);
+
+                    Console.WriteLine($"1st Rep,{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
+                }
+            }
 
             var firstRows = new List<RowFormat>();
 

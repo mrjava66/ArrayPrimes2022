@@ -5,21 +5,25 @@ namespace ArrayPrimes2022;
 public class GapReport
 {
     private readonly int[] _gapFound = new int[2000];
-    private readonly int[,] _gapRepeatFound = new int[8,2000];
-    private readonly int[,] _gapGrid = new int[1000, 1000];
+    private readonly int[,] _gapGrid = new int[780, 780];
+    private readonly int[,] _gapRepeatFound = new int[11, 2000];
+
     //public ulong Gap { get; }
     private readonly ulong _minDescribeGap;
 
     private readonly DateTime _startTime = DateTime.Now;
-    private ulong _lastPrime;
-    private ulong _lastGap;
     private int _gapRepeat;
+    private ulong _lastGap;
+    private ulong _lastPrime;
+    private readonly StringBuilder _gapFileBuilder;
+
     public GapReport(ulong lastPrime)
     {
         //Gap = gap;
         _lastGap = 0;
         _lastPrime = lastPrime;
         _minDescribeGap = 0;
+        _gapFileBuilder = new StringBuilder();
         /*
         //if (lastPrime > 1202442089) _minDescribeGap = 252;
         if (lastPrime > 30827138509) _minDescribeGap = 332;
@@ -33,58 +37,50 @@ public class GapReport
 
     public void LastPrime(ulong lastPrime, TextWriter gapFile)
     {
-        gapFile.WriteLine("LastPrime,0,Primes,{0},{0},{1}", lastPrime, (DateTime.Now - _startTime).TotalSeconds);
+        var str = string.Format("LastPrime,0,Primes,{0},{0},{1}", lastPrime, (DateTime.Now - _startTime).TotalSeconds);
+        _gapFileBuilder.AppendLine(str);
+        WriteFlush(gapFile);
     }
 
-    public void LoudReportGap(TextWriter gapFile, string extra)
+    public void WriteFlush(TextWriter gapFile)
     {
-        gapFile.WriteLine("1st Gap,0,Primes,0,{1},{0}", (DateTime.Now - _startTime).TotalSeconds, extra);
+        gapFile.Write(_gapFileBuilder.ToString());
+        gapFile.Flush();
     }
-    public void ReportGap(ulong prime, TextWriter gapFile)
+
+    public void LoudReportGap(string extra)
     {
-        var ulongGap = (prime - _lastPrime);
+        _gapFileBuilder.AppendLine($"Not Gap,0,Primes,0,{extra},{(DateTime.Now - _startTime).TotalSeconds}");
+    }
 
-        if (ulongGap > 1000)
-        {
-            Console.WriteLine($"Special Gap {ulongGap}");
-        }
+    public void ReportGap(ulong prime)
+    {
+        var ulongGap = prime - _lastPrime;
 
-        //int gap;
-        //if (ulongGap < Int32.MaxValue)
-        //    gap = (int)ulongGap;
-        //else
-        //{
-        //    gapFile.WriteLine("XXX Gap,{0},Primes,{1},{2},{3}", ulongGap, prime, _lastPrime, (DateTime.Now - _startTime).TotalSeconds);
-        //    _lastPrime = prime;
-        //    return;
-        //}
+        if (ulongGap > 1000) Console.WriteLine($"Special Gap {ulongGap}");
 
         if (_lastGap == ulongGap)
-        {
             _gapRepeat++;
-        }
         else
-        {
             _gapRepeat = 1;
-        }
 
         if ((int)ulongGap >= _gapFound.Length - 1)
         {
-            gapFile.WriteLine("SuperGap,{0},Primes,{1},{2},{3}", ulongGap, prime, _lastPrime, (DateTime.Now - _startTime).TotalSeconds);
+            _gapFileBuilder.AppendLine($"SuperGap,{ulongGap},Primes,{prime},{_lastPrime},{(DateTime.Now - _startTime).TotalSeconds}");
         }
         else
         {
             if (_gapRepeat > 1 && _gapRepeatFound[_gapRepeat, ulongGap] == 0)
             {
-                gapFile.WriteLine("1st Rep,{0},{1},{2},{3},{4}",_gapRepeat, ulongGap, prime, _lastPrime, (DateTime.Now - _startTime).TotalSeconds);
+                _gapFileBuilder.AppendLine($"1st Rep,{_gapRepeat},{ulongGap},{prime},{_lastPrime},{(DateTime.Now - _startTime).TotalSeconds}");
                 _gapRepeatFound[_gapRepeat, ulongGap]++;
             }
+
             if (ulongGap > _minDescribeGap && _gapFound[ulongGap] == 0)
-            {
-                gapFile.WriteLine("1st Gap,{0},Primes,{1},{2},{3}", ulongGap, prime, _lastPrime, (DateTime.Now - _startTime).TotalSeconds);
-            }
+                _gapFileBuilder.AppendLine($"1st Gap,{ulongGap},Primes,{prime},{_lastPrime},{(DateTime.Now - _startTime).TotalSeconds}");
             _gapFound[ulongGap]++;
         }
+
         _lastPrime = prime;
         if (_lastGap > 0)
             _gapGrid[_lastGap / 2, ulongGap / 2]++;
@@ -93,44 +89,32 @@ public class GapReport
 
     public void ReportGaps(TextWriter gapsFile)
     {
+        var gaps = new StringBuilder();
         for (var i = 0; i < _gapFound.Length; i++)
-        {
             if (_gapFound[i] != 0)
-            {
-                gapsFile.WriteLine("Gap,{0},Found,{1}", i, _gapFound[i]);
-            }
-        }
+                gaps.AppendLine($"Gap,{i},Found,{_gapFound[i]}");
+        gapsFile.Write(gaps.ToString());
 
         var maxJ = 0;
         var maxK = 0;
         for (var j = 0; j < _gapGrid.GetLength(0); j++)
-        {
-            for (var k = 0; k < _gapGrid.GetLength(1); k++)
+        for (var k = 0; k < _gapGrid.GetLength(1); k++)
+            if (_gapGrid[j, k] > 0)
             {
-                if (_gapGrid[j,k] > 0)
-                {
-                    if (j > maxJ) maxJ = j;
-                    if (k > maxK) maxK = k;
-                }
+                if (j > maxJ) maxJ = j;
+                if (k > maxK) maxK = k;
             }
-        }
 
         var grid = new StringBuilder("**** ");
-        for (var k = 0; k <= maxK; k++)
-        {
-            grid.Append($"{(2*k).ToString().PadLeft(7,' ')} ");
-        }
+        for (var k = 0; k <= maxK; k++) grid.Append($"{(2 * k).ToString().PadLeft(7, ' ')} ");
 
         grid.Append(Environment.NewLine);
 
         for (var j = 0; j <= maxJ; j++)
         {
-            grid.Append($"{(2*j).ToString().PadLeft(4, ' ')} ");
+            grid.Append($"{(2 * j).ToString().PadLeft(4, ' ')} ");
 
-            for (var k = 0; k <= maxK; k++)
-            {
-                grid.Append($"{_gapGrid[j, k].ToString().PadLeft(7, ' ')} ");
-            }
+            for (var k = 0; k <= maxK; k++) grid.Append($"{_gapGrid[j, k].ToString().PadLeft(7, ' ')} ");
             grid.Append(Environment.NewLine);
         }
 
