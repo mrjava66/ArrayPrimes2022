@@ -52,7 +52,7 @@ public class GapReport
     {
         var ulongGap = prime - _lastPrime;
 
-        if (ulongGap > 1000) Console.WriteLine($"Special Gap {ulongGap}");
+        //if (ulongGap > 1000) Console.WriteLine($"Special Gap {ulongGap}");
 
         if (_lastGap == ulongGap)
             _gapRepeat++;
@@ -100,7 +100,7 @@ public class GapReport
     public void ReportGaps(TextWriter gapsFile)
     {
         var gaps = new StringBuilder();
-        for (var i = 0; i < _gapFound.Length; i++)
+        for (var i = 0; i < _gapFound.GetLength(1); i++)
             if (_gapFound[0, i] != 0)
                 gaps.AppendLine($"Gap,{i},Found,{_gapFound[0, i]}");
         gapsFile.Write(gaps.ToString());
