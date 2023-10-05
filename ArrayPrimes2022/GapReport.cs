@@ -12,6 +12,7 @@ public class GapReport
     private int _gapRepeat;
     private ulong _lastGap;
     private ulong _lastPrime;
+    private ulong _primeCount;
     private readonly StringBuilder _gapFileBuilder;
 
     public GapReport(ulong lastPrime)
@@ -23,13 +24,7 @@ public class GapReport
 
     public void LastPrime(ulong lastPrime, TextWriter gapFile)
     {
-        var str = string.Format("LastPrime,0,Primes,{0},{0},{1}", lastPrime, (DateTime.Now - _startTime).TotalSeconds);
-        _gapFileBuilder.AppendLine(str);
-        WriteFlush(gapFile);
-    }
-
-    public void WriteFlush(TextWriter gapFile)
-    {
+        _gapFileBuilder.AppendLine($"LastPrime,{_primeCount},Primes,{lastPrime},{lastPrime},{(DateTime.Now - _startTime).TotalSeconds}");
         gapFile.Write(_gapFileBuilder.ToString());
         gapFile.Flush();
     }
@@ -50,6 +45,8 @@ public class GapReport
 
     public void ReportGap(ulong prime)
     {
+        _primeCount++;
+
         var ulongGap = prime - _lastPrime;
 
         //if (ulongGap > 1000) Console.WriteLine($"Special Gap {ulongGap}");
@@ -91,10 +88,12 @@ public class GapReport
             _gapFileBuilder.AppendLine($"DistLon,{minDistLonely},Primes,{_lastPrime},{_lastPrime},{TotalSeconds(ref totalSeconds)}");
         }
 
-        _lastPrime = prime;
         if (_lastGap > 0)
             _gapGrid[_lastGap / 2, ulongGap / 2]++;
+
         _lastGap = ulongGap;
+
+        _lastPrime = prime;
     }
 
     public void ReportGaps(TextWriter gapsFile)

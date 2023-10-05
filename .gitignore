@@ -361,7 +361,4 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/logR1.zip
-/logR2.zip
-/logR3.zip
-/logR4.zip
+/logR*.zip

@@ -511,9 +511,10 @@ internal static class ProgramClass
                 }
             }
 
-        gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
+        //gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "GapPrimes.0." + now + ".log", false);
-        gr.WriteFlush(gapFile);
+        gr.LastPrime(baseArrayCount * arraySize16, gapFile); // do an end gap.
+        //gr.WriteFlush(gapFile);
 
         var gapsFile = new StreamWriter(_basePath + "GapArray.0." + now + ".log", false);
         gr.ReportGaps(gapsFile);
