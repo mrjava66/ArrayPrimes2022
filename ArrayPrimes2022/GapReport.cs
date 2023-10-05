@@ -14,12 +14,29 @@ public class GapReport
     private ulong _lastPrime;
     private ulong _primeCount;
     private readonly StringBuilder _gapFileBuilder;
+    private ulong _minDistLon;
+    private ulong _minSumLon;
 
     public GapReport(ulong lastPrime)
     {
         _lastGap = 0;
         _lastPrime = lastPrime;
         _gapFileBuilder = new StringBuilder();
+        switch (lastPrime)
+        {
+            case > 47244640237:
+                _minDistLon = 170;
+                _minSumLon = 398;
+                break;
+            case > 4294967296:
+                _minDistLon = 160;
+                _minSumLon = 334;
+                break;
+            default:
+                _minDistLon = 0;
+                _minSumLon = 0;
+                break;
+        }
     }
 
     public void LastPrime(ulong lastPrime, TextWriter gapFile)
@@ -37,6 +54,7 @@ public class GapReport
     //calc this at most once per reportGap.
     private double TotalSeconds(ref double totalSeconds)
     {
+        return 0;
         if (totalSeconds>0)
             return totalSeconds;
         totalSeconds = (DateTime.Now - _startTime).TotalSeconds;
