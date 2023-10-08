@@ -10,9 +10,9 @@ internal static class ProgramClass
         try
         {
             var startTime = DateTime.Now;
-            var allGapRows = new Dictionary<int, GapRowFormat>();
-            var allRepRows = new Dictionary<(int, int), RepRowFormat>();
-            var allRows = new Dictionary<(string?, int), RowFormat>();
+            var allGapRows = new Dictionary<uint, GapRowFormat>();
+            var allRepRows = new Dictionary<(int, uint), RepRowFormat>();
+            var allRows = new Dictionary<(string?, uint), RowFormat>();
             var folder = ConfigurationManager.AppSettings["Folder"];
             var fileMask = ConfigurationManager.AppSettings["FileMask"];
             if (string.IsNullOrWhiteSpace(folder))
@@ -55,7 +55,7 @@ internal static class ProgramClass
                                 var rowFormat = new GapRowFormat
                                 {
                                     GapType = split[0],
-                                    GapSize = int.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
+                                    GapSize = uint.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
                                     //Primes = split[2],
                                     EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
                                     StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
@@ -69,7 +69,7 @@ internal static class ProgramClass
                                 {
                                     GapType = split[0],
                                     Repeat = int.TryParse(split[1], out var repeat) ? repeat : 0,
-                                    GapSize = int.TryParse(split[2], out var lineGapSize) ? lineGapSize : 0,
+                                    GapSize = uint.TryParse(split[2], out var lineGapSize) ? lineGapSize : 0,
                                     EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
                                     StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
                                     When = decimal.TryParse(split[5], out var when) ? when : 0
@@ -81,11 +81,18 @@ internal static class ProgramClass
                                 var rowFormat = new RowFormat
                                 {
                                     GapType = split[0],
-                                    GapSize = int.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
+                                    GapSize = uint.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
                                     EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
                                     StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
                                     When = decimal.TryParse(split[5], out var when) ? when : 0
                                 };
+                                if (rowFormat.GapType == "LastPrime")
+                                {
+                                    if (rowFormat.GapSize > rowFormat.EndPrime || rowFormat.GapSize == 0)
+                                    {
+                                        Console.WriteLine("Interpret Problem");
+                                    }
+                                }
                                 rows.Add(rowFormat);
                             }
                         }
@@ -114,7 +121,7 @@ internal static class ProgramClass
                         var didGet = allRepRows.TryGetValue((repRow.Repeat, repRow.GapSize), out var rep);
                         if (!didGet || rep is null)
                         {
-                            allRepRows.Add((repRow.Repeat, repRow.GapSize),repRow);
+                            allRepRows.Add((repRow.Repeat, repRow.GapSize), repRow);
                         }
                         else if (rep.StartPrime > repRow.StartPrime)
                         {
@@ -123,11 +130,18 @@ internal static class ProgramClass
                         }
                     }
 
-                    decimal lastWhen = 0;
+                    uint oddGaps = 0;
                     foreach (var row in gapRows)
                     {
-                        lastWhen = row.When;
-                        if (row.GapSize % 2 == 1) continue; // not interested in odds.(beginning and end gaps)
+                        if (row.GapSize % 2 == 1)
+                        {
+                            if (row.StartPrime != 2)
+                            {
+                                oddGaps++;
+                                continue;
+                            }
+                        }
+                        // not interested in odds.(beginning and end gaps)
 
                         var didGet = allGapRows.TryGetValue(row.GapSize, out var cr);
                         if (!didGet || cr is null)
@@ -144,7 +158,13 @@ internal static class ProgramClass
                         }
                     }
 
-                    totalTime += lastWhen;
+                    var lastPrime = rows.FindLast(row => row.GapType == "LastPrime");
+                    if (lastPrime != null)
+                    {
+                        lastPrime.GapSize -= oddGaps;
+                        totalTime += lastPrime.When;
+                    }
+
                 }
                 catch (Exception? ex)
                 {
@@ -158,7 +178,7 @@ internal static class ProgramClass
                     Console.Error.WriteLine("Continuing to the next file.");
                 }
 
-            foreach (var key in allRows.Keys.OrderBy(num=>num.Item1).ThenBy(num=>num.Item2))
+            foreach (var key in allRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
                 var didGet = allRows.TryGetValue(key, out var val);
                 if (didGet && val is not null)
@@ -192,7 +212,7 @@ internal static class ProgramClass
             }
 
             // sort the gaps by start prime, and find the max gaps.
-            var gapSize = -1;
+            uint gapSize = 0;
 
             foreach (var row in firstRows.OrderBy(o => o.StartPrime))
                 if (row.GapSize > gapSize)
@@ -218,7 +238,7 @@ internal static class ProgramClass
                     row.Tail = true;
                 }
 
-            var lastGap = 0;
+            uint lastGap = 0;
             var canTail = true;
             // output the results.
             foreach (var row in firstRows.OrderBy(o => o.GapSize))

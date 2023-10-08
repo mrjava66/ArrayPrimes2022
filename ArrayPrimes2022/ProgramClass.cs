@@ -28,6 +28,7 @@ internal static class ProgramClass
 
     // ReSharper disable once UnusedMember.Local
     // List of Blocks of 128*Two32 numbers (1/2T) that contain a first gap.
+    // This list REQUIRES a block size of 128 to be correct.
     // ReSharper disable once ArrangeObjectCreationWhenTypeEvident
     private static readonly List<uint> Guided = new List<uint>
     {
@@ -482,15 +483,16 @@ internal static class ProgramClass
         fdl[0] = 2;
         gr.ReportGap(2);
         //don't sieve for 2
-        foreach (var prime in new ulong[] { 3, 5, 7, 11, 13 })
+        foreach (var seedPrime in new ulong[] { 3, 5, 7, 11, 13 })
         {
-            fdl[++countPrimeNumber] = (uint)prime;
-            gr.ReportGap(prime);
-            StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
+            fdl[++countPrimeNumber] = (uint)seedPrime;
+            gr.ReportGap(seedPrime);
+            StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, seedPrime);
         }
 
         ulong arraySize16 = baseArrayUnitSize * 16;
 
+        ulong prime=0;
         for (var a = 0; a < baseArrayCount; a++)
             for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
@@ -499,7 +501,7 @@ internal static class ProgramClass
                 {
                     if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
                     fdl[++countPrimeNumber] = (uint)prime;
 
                     gr.ReportGap(prime);
@@ -511,9 +513,9 @@ internal static class ProgramClass
                 }
             }
 
-        //gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
+        gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "GapPrimes.0." + now + ".log", false);
-        gr.LastPrime(baseArrayCount * arraySize16, gapFile); // do an end gap.
+        gr.LastPrime(prime, gapFile); // do an end gap.
         //gr.WriteFlush(gapFile);
 
         var gapsFile = new StreamWriter(_basePath + "GapArray.0." + now + ".log", false);
@@ -601,42 +603,9 @@ internal static class ProgramClass
         return prime;
     }
 
-    private static void PostAnvilProcess(uint[] fdl, uint[] offsets, ulong divisorsFillPosition,
-        ulong divisorPosition, byte[] bytes0, GapReport gr)
+    private static void SieveProcess(uint[] fdl, uint[] offsets, ulong divisorsFillPosition,
+        ulong divisorPosition, byte[] bytes0)
     {
-        const ulong byteCheck = 350;
-
-        for (; divisorPosition < byteCheck; divisorPosition++)
-        {
-            var p = fdl[divisorPosition];
-            var o = offsets[divisorPosition];
-            var primeByte = p / 8;
-            var primeBit = (int)p % 8;
-            var offsetByte = o / 8;
-            var offsetBit = (int)o % 8;
-            //this is the main loop, this get's all the action.  ~2^32*(0.5*2^32/log(2^32)) entries and ( 2^32*(0.5*(2^32)/log(2^32)) )*( ((2^32)/log(2^32))*(1/2)*(1/3) ) cycles.
-            while (offsetByte < Two28)
-            {
-                var bib = (byte)(1 << offsetBit);
-                //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
-                if ((bytes0[offsetByte] & bib) == 0) bytes0[offsetByte] |= bib;
-                offsetByte += primeByte;
-                offsetBit += primeBit;
-                if (offsetBit < 8) continue;
-                offsetBit -= 8;
-                offsetByte++;
-            }
-
-            var ndp = (((ulong)offsetByte) - Two28) * ((ulong)8) + (ulong)offsetBit;
-            if (ndp > uint.MaxValue)
-            {
-                Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
-            }
-            offsets[divisorPosition] = (uint)ndp;
-        }
-
-        gr.LoudReportGap("AfterFirstBlock");
-
         for (; divisorPosition < divisorsFillPosition; divisorPosition++)
         {
             var p = fdl[divisorPosition];
@@ -758,7 +727,7 @@ internal static class ProgramClass
             grl.LoudReportGap("AfterBlockCopy"); // log how long it takes to put in the anvil.
 
             const ulong divisorPosition = 9;
-            PostAnvilProcess(fdl, offsets, divisorsFillPosition, divisorPosition, bytes00, grl);
+            SieveProcess(fdl, offsets, divisorsFillPosition, divisorPosition, bytes00);
             grl.LoudReportGap("AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;
