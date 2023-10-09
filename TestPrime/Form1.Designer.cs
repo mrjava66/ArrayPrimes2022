@@ -46,6 +46,7 @@
             textBox1.Size = new Size(688, 23);
             textBox1.TabIndex = 0;
             textBox1.Text = "18361375334787046697";
+            textBox1.DoubleClick += textBox1_DoubleClick;
             // 
             // label1
             // 

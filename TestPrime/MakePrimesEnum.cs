@@ -1,14 +1,14 @@
 namespace TestPrime;
 
-public static class MakePrimes
+public class MakePrimesEnum : IMakePrimes
 {
     private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5 };
 
-    public static ulong[] ArrayAllPrimes => ListAllPrimes.ToArray();
-    public static Dictionary<ulong, ulong> DictAllPrimes => ArrayAllPrimes.ToDictionary(x=>x,x=>x);
-    public static int NumPrimes => ListAllPrimes.Count;
+    public ulong[] ArrayAllPrimes => ListAllPrimes.ToArray();
+    public Dictionary<ulong, ulong> DictAllPrimes => ArrayAllPrimes.ToDictionary(x => x, x => x);
+    public int NumPrimes => ListAllPrimes.Count;
 
-    public static void MakePrimesTask()
+    public void MakePrimesTask()
     {
         try
         {
@@ -29,9 +29,9 @@ public static class MakePrimes
     {
         try
         {
-            var two28 = Math.Sqrt(ulong.MaxValue);
+            var two32 = Math.Sqrt(ulong.MaxValue);
             foreach (var p in AllPrimes())
-                if (p > two28)
+                if (p > two32)
                     break;
         }
         catch
@@ -40,7 +40,8 @@ public static class MakePrimes
         }
     }
 
-    public static IEnumerable<ulong> AllPrimes()
+    // ReSharper disable once FunctionRecursiveOnAllPaths
+    private static IEnumerable<ulong> AllPrimes()
     {
         foreach (var prime in ListAllPrimes) yield return prime;
         var i = ListAllPrimes[^1];

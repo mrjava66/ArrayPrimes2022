@@ -11,11 +11,17 @@ public partial class Form1 : Form
     private const string NFF = "no factor found:";
     private static int _numNotFoundNum;
     private static readonly object NumNotFoundObj = new();
+    private static IMakePrimes? _makePrimes=null;
 
     public Form1()
     {
         InitializeComponent();
-        MakePrimes.MakePrimesTask();
+        if (_makePrimes == null)
+        {
+            //makePrimes = new MakePrimesEnum();
+            _makePrimes = new MakePrimesSieve();
+        }
+        _makePrimes.MakePrimesTask();
     }
 
     private static void NumNotFound()
@@ -34,19 +40,23 @@ public partial class Form1 : Form
             var didLen = ulong.TryParse(textBox2.Text.FixNumber(), out var len);
             if (!didStart || !didLen)
                 throw new Exception("Must Provide Numbers");
+            //sensible numbers.
+            if (start % 2 == 0) start++;
+            if (len % 2 != 0) len++;
             var end = start + len;
             _numNotFoundNum = 0;
             richTextBox1.Text = "";
             var lines = new StringBuilder();
+            var firstP = Math.Sqrt(start);
             var lastP = Math.Sqrt(end);
             var lastP3 = Math.Pow(end, 1.0 / 3.0); // if first divisible prime is > num^1/3, then value is semi-prime.
-            var somePrimes = MakePrimes.DictAllPrimes;
+            var somePrimes = _makePrimes.DictAllPrimes;
 
             var tasks = new List<Task<string>>();
             for (var check = start; check <= end; check += 2)
             {
                 var aCheck = check;
-                var task = Task.Run(() => CheckNumber(aCheck, lastP, lastP3, somePrimes));
+                var task = Task.Run(() => CheckNumber(aCheck, firstP, lastP, lastP3, somePrimes));
                 tasks.Add(task);
             }
 
@@ -120,7 +130,8 @@ public partial class Form1 : Form
             }
     }
 
-    private string CheckNumber(ulong check, double lastP, double lastP3, Dictionary<ulong, ulong> somePrimes)
+    private string CheckNumber(ulong check, double firstP, double lastP, double lastP3,
+        Dictionary<ulong, ulong> somePrimes)
     {
         var line = new StringBuilder();
         line.Append($"{Environment.NewLine}");
@@ -134,6 +145,13 @@ public partial class Form1 : Form
                 knownPrime = true;
                 break;
             }
+
+            if (p > firstP) //maybe prime.
+                if (p > Math.Sqrt(check))
+                {
+                    knownPrime = true;
+                    break;
+                }
 
             var mod = check % p;
             if (mod != 0) continue;
@@ -193,8 +211,8 @@ public partial class Form1 : Form
     {
         try
         {
-            var count = MakePrimes.NumPrimes;
-            var prime = MakePrimes.ArrayAllPrimes[^1];
+            var count = _makePrimes.NumPrimes;
+            var prime = _makePrimes.ArrayAllPrimes[^1];
             // ReSharper disable once LocalizableElement
             label3.Text = $"Staged to {Environment.NewLine}{count:n0}:{Environment.NewLine}{prime:n0}";
         }
@@ -202,5 +220,35 @@ public partial class Form1 : Form
         {
             MessageBox.Show(exception.Message);
         }
+    }
+
+    private int DclickLocation = 0;
+    private void textBox1_DoubleClick(object sender, EventArgs e)
+    {
+        if (DclickLocation == 0)
+        {
+            textBox1.Text = "90874329411493";
+            textBox2.Text = "804";
+        }
+        else if (DclickLocation == 1)
+        {
+            textBox1.Text = "96949415903999";
+            textBox2.Text = "788";
+
+        }
+        else if (DclickLocation == 2)
+        {
+            textBox1.Text = "42842283925351";
+            textBox2.Text = "778";
+        }
+        else if (DclickLocation == 3)
+        {
+            textBox1.Text = "18361375334787046697";
+            textBox2.Text = "1550";
+
+        }
+        DclickLocation++;
+        if (DclickLocation > 3)
+        { DclickLocation = 0; }
     }
 }
