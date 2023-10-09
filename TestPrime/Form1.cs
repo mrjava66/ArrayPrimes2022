@@ -58,58 +58,66 @@ public partial class Form1 : Form
 
             lines.Append($"{Environment.NewLine}NumNotFound:{_numNotFoundNum}");
             richTextBox1.Text = lines.ToString();
-            foreach (var line in richTextBox1.Lines)
-                try
-                {
-                    var startPos = richTextBox1.Text.IndexOf(line, StringComparison.Ordinal);
-                    richTextBox1.Select(startPos, line.Length);
-                    if (line.Contains(KP))
-                    {
-                        richTextBox1.SelectionBackColor = Color.Green;
-                    }
-                    else if (line.Contains(LFSP))
-                    {
-                        richTextBox1.SelectionBackColor = Color.GreenYellow;
-                    }
-                    else if (line.Contains(SFSP))
-                    {
-                        richTextBox1.SelectionBackColor = Color.DarkSeaGreen;
-                    }
-                    else if (line.Contains(NFF))
-                    {
-                        richTextBox1.SelectionBackColor = Color.Red;
-                    }
-                    else if (line.Contains(UISP))
-                    {
-                        richTextBox1.SelectionBackColor = Color.Pink;
-                    }
-                    else
-                    {
-                        var sub = line.IndexOf(':');
-                        if (sub <= 0)
-                            continue;
-                        var subLine = line.Substring(0, sub);
-                        var didParse = int.TryParse(subLine, out var factor);
-                        if (didParse)
-                        {
-                            factor += 127;
-                            if (factor > byte.MaxValue)
-                                factor = byte.MaxValue;
-                            if (factor < byte.MinValue)
-                                factor = byte.MinValue;
-                            richTextBox1.SelectionBackColor = Color.FromArgb(factor, factor, factor);
-                        }
-                    }
-                }
-                catch (Exception exception)
-                {
-                    Console.WriteLine(exception);
-                }
+            ColorTextBox(richTextBox1);
         }
         catch (Exception exception)
         {
             MessageBox.Show(exception.Message);
         }
+    }
+
+    private static void ColorTextBox(RichTextBox richTextBox)
+    {
+        foreach (var line in richTextBox.Lines)
+            try
+            {
+                var startPos = richTextBox.Text.IndexOf(line, StringComparison.Ordinal);
+                richTextBox.Select(startPos, line.Length);
+                if (line.Contains(KP))
+                {
+                    richTextBox.SelectionBackColor = Color.DarkGreen;
+                    richTextBox.SelectionColor = Color.White;
+                }
+                else if (line.Contains(LFSP))
+                {
+                    richTextBox.SelectionBackColor = Color.GreenYellow;
+                }
+                else if (line.Contains(SFSP))
+                {
+                    richTextBox.SelectionBackColor = Color.DarkSeaGreen;
+                }
+                else if (line.Contains(NFF))
+                {
+                    richTextBox.SelectionBackColor = Color.Red;
+                }
+                else if (line.Contains(UISP))
+                {
+                    richTextBox.SelectionBackColor = Color.Pink;
+                }
+                else
+                {
+                    var sub = line.IndexOf(':');
+                    if (sub <= 0)
+                        continue;
+                    var subLine = line.Substring(0, sub);
+                    var didParse = int.TryParse(subLine, out var factor);
+                    if (didParse)
+                    {
+                        //factor += 127;
+                        if (factor < 127)
+                            richTextBox.SelectionColor = Color.White;
+                        if (factor > byte.MaxValue)
+                            factor = byte.MaxValue;
+                        if (factor < byte.MinValue)
+                            factor = byte.MinValue;
+                        richTextBox.SelectionBackColor = Color.FromArgb(factor, factor, factor);
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception);
+            }
     }
 
     private string CheckNumber(ulong check, double lastP, double lastP3, Dictionary<ulong, ulong> somePrimes)
