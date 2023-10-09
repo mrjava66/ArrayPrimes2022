@@ -178,8 +178,12 @@ internal static class ProgramClass
                     Console.Error.WriteLine("Continuing to the next file.");
                 }
 
+            ulong lastStartPrime = 0;
             foreach (var val in allLastPrimeRows.OrderBy(o => ulong.MaxValue-o.StartPrime))
             {
+                if (val.StartPrime == lastStartPrime)
+                    continue;
+                lastStartPrime=val.StartPrime;
                 var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
                 Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
             }
