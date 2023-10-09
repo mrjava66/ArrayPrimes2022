@@ -2,20 +2,13 @@ using System.Text;
 
 namespace TestPrime;
 
-public static class Extends
-{
-    public static string FixNumber(this string num)
-    {
-        var retval = num;
-        if (string.IsNullOrWhiteSpace(retval))
-            return retval;
-        retval = retval.Replace(",", "");
-        return retval;
-    }
-}
-
 public partial class Form1 : Form
 {
+    private const string LFSP = "large-factor-semi-prime:";
+    private const string SFSP = "small-factor-semi-prime:";
+    private const string UISP = "unknown-if-semi-prime:";
+    private const string KP = "known prime:";
+    private const string NFF = "no factor found:";
     private static int _numNotFoundNum;
     private static readonly object NumNotFoundObj = new();
 
@@ -43,7 +36,7 @@ public partial class Form1 : Form
                 throw new Exception("Must Provide Numbers");
             var end = start + len;
             _numNotFoundNum = 0;
-            textBox3.Text = "";
+            richTextBox1.Text = "";
             var lines = new StringBuilder();
             var lastP = Math.Sqrt(end);
             var lastP3 = Math.Pow(end, 1.0 / 3.0); // if first divisible prime is > num^1/3, then value is semi-prime.
@@ -64,7 +57,54 @@ public partial class Form1 : Form
             }
 
             lines.Append($"{Environment.NewLine}NumNotFound:{_numNotFoundNum}");
-            textBox3.Text = lines.ToString();
+            richTextBox1.Text = lines.ToString();
+            foreach (var line in richTextBox1.Lines)
+                try
+                {
+                    var startPos = richTextBox1.Text.IndexOf(line, StringComparison.Ordinal);
+                    richTextBox1.Select(startPos, line.Length);
+                    if (line.Contains(KP))
+                    {
+                        richTextBox1.SelectionBackColor = Color.Green;
+                    }
+                    else if (line.Contains(LFSP))
+                    {
+                        richTextBox1.SelectionBackColor = Color.GreenYellow;
+                    }
+                    else if (line.Contains(SFSP))
+                    {
+                        richTextBox1.SelectionBackColor = Color.DarkSeaGreen;
+                    }
+                    else if (line.Contains(NFF))
+                    {
+                        richTextBox1.SelectionBackColor = Color.Red;
+                    }
+                    else if (line.Contains(UISP))
+                    {
+                        richTextBox1.SelectionBackColor = Color.Pink;
+                    }
+                    else
+                    {
+                        var sub = line.IndexOf(':');
+                        if (sub <= 0)
+                            continue;
+                        var subLine = line.Substring(0, sub);
+                        var didParse = int.TryParse(subLine, out var factor);
+                        if (didParse)
+                        {
+                            factor += 127;
+                            if (factor > byte.MaxValue)
+                                factor = byte.MaxValue;
+                            if (factor < byte.MinValue)
+                                factor = byte.MinValue;
+                            richTextBox1.SelectionBackColor = Color.FromArgb(factor, factor, factor);
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Console.WriteLine(exception);
+                }
         }
         catch (Exception exception)
         {
@@ -94,15 +134,15 @@ public partial class Form1 : Form
 
             if (p > lastP3)
             {
-                line.Append("large-factor-semi-prime:");
+                line.Append(LFSP);
             }
             else
             {
                 var isPrime = IsPrime(check / p, somePrimes);
                 if (isPrime == true)
-                    line.Append("small-factor-semi-prime:");
+                    line.Append(SFSP);
                 else if (isPrime == null)
-                    line.Append("unknown-if-semi-prime:");
+                    line.Append(UISP);
             }
 
             found = true;
@@ -111,12 +151,12 @@ public partial class Form1 : Form
 
         if (knownPrime)
         {
-            line.Append("known prime:");
+            line.Append(KP);
         }
         else if (!found)
         {
             NumNotFound();
-            line.Append("no factor found:");
+            line.Append(NFF);
         }
 
         line.Append($"{check}");
@@ -124,7 +164,7 @@ public partial class Form1 : Form
         return line.ToString();
     }
 
-    private bool? IsPrime(ulong check, Dictionary<ulong,ulong> somePrimes)
+    private bool? IsPrime(ulong check, Dictionary<ulong, ulong> somePrimes)
     {
         var p2 = Math.Sqrt(check);
 

@@ -33,9 +33,9 @@
             label2 = new Label();
             textBox2 = new TextBox();
             button1 = new Button();
-            textBox3 = new TextBox();
             label3 = new Label();
             button2 = new Button();
+            richTextBox1 = new RichTextBox();
             SuspendLayout();
             // 
             // textBox1
@@ -86,17 +86,6 @@
             button1.UseVisualStyleBackColor = true;
             button1.Click += button1_Click;
             // 
-            // textBox3
-            // 
-            textBox3.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            textBox3.Location = new Point(100, 111);
-            textBox3.Multiline = true;
-            textBox3.Name = "textBox3";
-            textBox3.ReadOnly = true;
-            textBox3.ScrollBars = ScrollBars.Vertical;
-            textBox3.Size = new Size(688, 327);
-            textBox3.TabIndex = 6;
-            // 
             // label3
             // 
             label3.AutoSize = true;
@@ -115,14 +104,25 @@
             button2.UseVisualStyleBackColor = true;
             button2.Click += button2_Click;
             // 
+            // richTextBox1
+            // 
+            richTextBox1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            richTextBox1.Location = new Point(100, 94);
+            richTextBox1.Name = "richTextBox1";
+            richTextBox1.ReadOnly = true;
+            richTextBox1.ScrollBars = RichTextBoxScrollBars.Vertical;
+            richTextBox1.Size = new Size(688, 344);
+            richTextBox1.TabIndex = 9;
+            richTextBox1.Text = "";
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(richTextBox1);
             Controls.Add(button2);
             Controls.Add(label3);
-            Controls.Add(textBox3);
             Controls.Add(button1);
             Controls.Add(label2);
             Controls.Add(textBox2);
@@ -141,8 +141,8 @@
         private Label label2;
         private TextBox textBox2;
         private Button button1;
-        private TextBox textBox3;
         private Label label3;
         private Button button2;
+        private RichTextBox richTextBox1;
     }
 }
