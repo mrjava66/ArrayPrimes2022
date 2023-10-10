@@ -115,14 +115,38 @@ public class MakePrimesSieve : IMakePrimes
     {
         var fullDivisorList = new uint[203280222];
         MakeBaseArrays(fullDivisorList);
+        ListAllPrimes.RemoveAll(x => true);
         foreach (var fullDivisor in fullDivisorList)
         {
-            if (fullDivisor <= 7) continue;
-            ListAllPrimes.Add(fullDivisor);
+            if (fullDivisor != 0)
+                ListAllPrimes.Add(fullDivisor);
+        }
+        ListAllPrimes.Add(4294967311);
+    }
+
+    private int _dapLen;
+    private Dictionary<ulong, ulong>? _dictAllPrimes;
+
+    public Dictionary<ulong, ulong> DictAllPrimes
+    {
+        get
+        {
+            if (_dictAllPrimes == null)
+            {
+                _dapLen = NumPrimes;
+                _dictAllPrimes = ArrayAllPrimes.ToDictionary(x => x, x => x);
+            }
+
+            if (NumPrimes != _dapLen)
+            {
+                _dapLen = NumPrimes;
+                _dictAllPrimes = ArrayAllPrimes.ToDictionary(x => x, x => x);
+            }
+
+            return _dictAllPrimes;
         }
     }
 
-    public Dictionary<ulong, ulong> DictAllPrimes => ArrayAllPrimes.ToDictionary(x => x, x => x);
     public int NumPrimes => ListAllPrimes.Count;
     public ulong[] ArrayAllPrimes => ListAllPrimes.ToArray();
     private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5, 7 };

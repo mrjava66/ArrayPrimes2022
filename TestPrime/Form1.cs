@@ -11,7 +11,7 @@ public partial class Form1 : Form
     private const string NFF = "no factor found:";
     private static int _numNotFoundNum;
     private static readonly object NumNotFoundObj = new();
-    private static IMakePrimes? _makePrimes=null;
+    private static IMakePrimes? _makePrimes;
 
     public Form1()
     {
@@ -36,6 +36,8 @@ public partial class Form1 : Form
     {
         try
         {
+            if (_makePrimes == null)
+                throw new Exception("_makePrimes needs a value.");
             var didStart = ulong.TryParse(textBox1.Text.FixNumber(), out var start);
             var didLen = ulong.TryParse(textBox2.Text.FixNumber(), out var len);
             if (!didStart || !didLen)
@@ -44,6 +46,8 @@ public partial class Form1 : Form
             if (start % 2 == 0) start++;
             if (len % 2 != 0) len++;
             var end = start + len;
+            if (end < start)
+                end = ulong.MaxValue;
             _numNotFoundNum = 0;
             richTextBox1.Text = "";
             var lines = new StringBuilder();
@@ -58,6 +62,8 @@ public partial class Form1 : Form
                 var aCheck = check;
                 var task = Task.Run(() => CheckNumber(aCheck, firstP, lastP, lastP3, somePrimes));
                 tasks.Add(task);
+                if (check == ulong.MaxValue)
+                    break;
             }
 
             foreach (var task in tasks)
@@ -222,13 +228,23 @@ public partial class Form1 : Form
         }
     }
 
-    private int DclickLocation = 0;
+    private int DclickLocation = -1;
+    private static List<(string, string)> Locations = new List<(string, string)>        {
+        ("756", "70099348325843"),
+        ("758", "47581758352253"),
+        ("778", "42842283925351"),
+        ("788", "96949415903999"),
+        ("804", "90874329411493"),
+        ("806", "171231342420521"),
+    };
+
     private void textBox1_DoubleClick(object sender, EventArgs e)
     {
+
         if (DclickLocation == 0)
         {
-            textBox1.Text = "90874329411493";
-            textBox2.Text = "804";
+            textBox1.Text = "96949415903999";
+            textBox2.Text = "788";
         }
         else if (DclickLocation == 1)
         {
@@ -250,5 +266,10 @@ public partial class Form1 : Form
         DclickLocation++;
         if (DclickLocation > 3)
         { DclickLocation = 0; }
+    }
+
+    private void textBox1_TextChanged(object sender, EventArgs e)
+    {
+
     }
 }
