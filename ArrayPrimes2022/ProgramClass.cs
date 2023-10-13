@@ -477,7 +477,7 @@ internal static class ProgramClass
         }
 
         var sieveTop = (ulong)(Math.Sqrt(uint.MaxValue) + 1); // last value to sieve through the divisor array.
-        var gr = new GapReport(2);
+        var gr = new GapReport(new GapReportCarryState { GapRepeat = 0, LastGap = 0, LastPrime = 2 });
 
         var countPrimeNumber = 0;
         fdl[0] = 2;
@@ -492,7 +492,7 @@ internal static class ProgramClass
 
         ulong arraySize16 = baseArrayUnitSize * 16;
 
-        ulong prime=0;
+        ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
             for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
@@ -677,9 +677,15 @@ internal static class ProgramClass
     {
         // process all the primes in segment a.  (a*2^32 -> (a+1)*2^32)
         // ReSharper disable once ArrangeRedundantParentheses
+        GapReportCarryState gapReportCarryState=new GapReportCarryState
+        {
+            LastPrime = lastCheckedPrime,
+            LastGap = 0,
+            GapRepeat = 0
+        };
         for (var a = v1; (a < v2) || (v2 == 0 && a == v1); a++)
         {
-            var grl = new GapReport(lastCheckedPrime);
+            var grl = new GapReport(gapReportCarryState);
 
             //populate the divisor array
             //populate the divisor offsets
@@ -758,6 +764,7 @@ internal static class ProgramClass
             // report on the array.
             var gapsFile = new StreamWriter(_basePath + "GapArray." + a + "." + now + ".log", false);
             grl.ReportGaps(gapsFile);
+            gapReportCarryState = grl.State;
         }
     }
 

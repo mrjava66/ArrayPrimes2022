@@ -2,6 +2,13 @@
 
 namespace ArrayPrimes2022;
 
+public class GapReportCarryState
+{
+    public int GapRepeat { get; set; }
+    public ulong LastGap { get; set; }
+    public ulong LastPrime { get; set; }
+}
+
 public class GapReport
 {
     private readonly StringBuilder _gapFileBuilder;
@@ -12,35 +19,18 @@ public class GapReport
     private readonly DateTime _startTime = DateTime.Now;
     private int _gapRepeat;
     private ulong _lastGap;
-    private ulong _minDistLon;
-    private ulong _minSumLon;
+    private ulong _lastPrimeNum;
     private ulong _primeCount;
 
-    public GapReport(ulong lastPrime)
+    public GapReport(GapReportCarryState gapReportCarryState)
     {
-        _lastGap = 0;
-        LastPrimeNum = lastPrime;
+        _lastGap = gapReportCarryState.LastGap;
+        _gapRepeat = gapReportCarryState.GapRepeat;
+        _lastPrimeNum = gapReportCarryState.LastPrime;
         _gapFileBuilder = new StringBuilder();
-        switch (lastPrime)
-        {
-            case > 47244640237:
-                _minDistLon = 170;
-                _minSumLon = 398;
-                break;
-
-            case > 4294967296:
-                _minDistLon = 160;
-                _minSumLon = 334;
-                break;
-
-            default:
-                _minDistLon = 0;
-                _minSumLon = 0;
-                break;
-        }
     }
 
-    public ulong LastPrimeNum { get; private set; }
+    public GapReportCarryState State => new() { GapRepeat = _gapRepeat, LastGap = _lastGap, LastPrime = _lastPrimeNum };
 
     public void LastPrime(ulong lastPrime, TextWriter gapFile)
     {
@@ -69,7 +59,7 @@ public class GapReport
     {
         _primeCount++;
 
-        var ulongGap = prime - LastPrimeNum;
+        var ulongGap = prime - _lastPrimeNum;
 
         //if (ulongGap > 1000) Console.WriteLine($"Special Gap {ulongGap}");
 
@@ -83,20 +73,20 @@ public class GapReport
         if ((int)ulongGap >= _gapFound.Length - 1)
         {
             _gapFileBuilder.AppendLine(
-                $"SuperGap,{ulongGap},Primes,{prime},{LastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                $"SuperGap,{ulongGap},Primes,{prime},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
         }
         else
         {
             if (_gapRepeat > 1 && _gapRepeatFound[_gapRepeat, ulongGap] == 0)
             {
                 _gapFileBuilder.AppendLine(
-                    $"1st Rep,{_gapRepeat},{ulongGap},{prime},{LastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                    $"1st Rep,{_gapRepeat},{ulongGap},{prime},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
                 _gapRepeatFound[_gapRepeat, ulongGap]++;
             }
 
             if (_gapFound[0, ulongGap] == 0)
                 _gapFileBuilder.AppendLine(
-                    $"1st Gap,{ulongGap},Primes,{prime},{LastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                    $"1st Gap,{ulongGap},Primes,{prime},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
             _gapFound[0, ulongGap]++;
         }
 
@@ -104,7 +94,7 @@ public class GapReport
         {
             _gapFound[1, _lastGap + ulongGap]++;
             _gapFileBuilder.AppendLine(
-                $"Sum Lon,{_lastGap + ulongGap},Primes,{LastPrimeNum},{LastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                $"Sum Lon,{_lastGap + ulongGap},Primes,{_lastPrimeNum},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
         }
 
         var minDistLonely = _lastGap > ulongGap ? ulongGap : _lastGap;
@@ -112,7 +102,7 @@ public class GapReport
         {
             _gapFound[2, minDistLonely]++;
             _gapFileBuilder.AppendLine(
-                $"DistLon,{minDistLonely},Primes,{LastPrimeNum},{LastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                $"DistLon,{minDistLonely},Primes,{_lastPrimeNum},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
         }
 
         if (_lastGap > 0)
@@ -120,7 +110,7 @@ public class GapReport
 
         _lastGap = ulongGap;
 
-        LastPrimeNum = prime;
+        _lastPrimeNum = prime;
     }
 
     public void ReportGaps(TextWriter gapsFile)

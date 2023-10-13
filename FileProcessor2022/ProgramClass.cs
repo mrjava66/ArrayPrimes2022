@@ -188,6 +188,14 @@ internal static class ProgramClass
                 Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
             }
 
+            /*
+odd-fix
+
+%6!=0 not repeatable
+6,12,18,24,30 already seen to max
+review.
+*/
+
             foreach (var key in allRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
                 var didGet = allRows.TryGetValue(key, out var val);
