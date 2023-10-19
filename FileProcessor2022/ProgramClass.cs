@@ -41,63 +41,7 @@ internal static class ProgramClass
             foreach (var file in files)
                 try
                 {
-                    //Console.WriteLine("Reading From '" + file + "'");
-                    var gapRows = new List<GapRowFormat>();
-                    var repRows = new List<RepRowFormat>();
-                    var rows = new List<RowFormat>();
-                    foreach (var row in File.ReadAllLines(file))
-                        try
-                        {
-                            var split = row.Split(',');
-                            if (split.Length < 5)
-                                continue;
-                            var gapType = split[0];
-                            if (gapType == "1st Gap")
-                            {
-                                var rowFormat = new GapRowFormat
-                                {
-                                    GapType = split[0],
-                                    GapSize = uint.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
-                                    //Primes = split[2],
-                                    EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
-                                    StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
-                                    When = decimal.TryParse(split[5], out var when) ? when : 0
-                                };
-                                gapRows.Add(rowFormat);
-                            }
-                            else if (gapType == "1st Rep")
-                            {
-                                var repFormat = new RepRowFormat
-                                {
-                                    GapType = split[0],
-                                    Repeat = int.TryParse(split[1], out var repeat) ? repeat : 0,
-                                    GapSize = uint.TryParse(split[2], out var lineGapSize) ? lineGapSize : 0,
-                                    EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
-                                    StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
-                                    When = decimal.TryParse(split[5], out var when) ? when : 0
-                                };
-                                repRows.Add(repFormat);
-                            }
-                            else
-                            {
-                                var rowFormat = new RowFormat
-                                {
-                                    GapType = split[0],
-                                    GapSize = uint.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
-                                    EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
-                                    StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
-                                    When = decimal.TryParse(split[5], out var when) ? when : 0
-                                };
-                                if (rowFormat.GapType == "LastPrime")
-                                    if (rowFormat.GapSize > rowFormat.EndPrime || rowFormat.GapSize == 0)
-                                        Console.WriteLine("Interpret Problem");
-                                rows.Add(rowFormat);
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            Console.Error.WriteLine(e);
-                        }
+                    var (gapRows, repRows, rows) = ProcessFileLines(file);
 
                     foreach (var repRow in repRows)
                     {
@@ -179,11 +123,11 @@ internal static class ProgramClass
                 }
 
             ulong lastStartPrime = 0;
-            foreach (var val in allLastPrimeRows.OrderBy(o => ulong.MaxValue-o.StartPrime))
+            foreach (var val in allLastPrimeRows.OrderBy(o => ulong.MaxValue - o.StartPrime))
             {
                 if (val.StartPrime == lastStartPrime)
                     continue;
-                lastStartPrime=val.StartPrime;
+                lastStartPrime = val.StartPrime;
                 var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
                 Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
             }
@@ -206,15 +150,25 @@ review.
                 }
             }
 
+            var gapSizeRepeat = new Dictionary<int, uint> { { 2, 6 }, { 3, 6 }, { 4, 30 }, { 5, 30 }, { 6, 210 }, { 7, 210 }, { 8, 210 }, { 9, 210 } };
+            uint lastGapSize = 0;
             foreach (var keyTuple in allRepRows.Keys.OrderBy(num => num.Item1 * 2000 + num.Item2))
             {
                 var didGet = allRepRows.TryGetValue(keyTuple, out var val);
                 if (didGet && val is not null)
                 {
+                    var didGetGsr = gapSizeRepeat.TryGetValue(val.Repeat, out var spaceValue);
+                    while (didGetGsr && lastGapSize + spaceValue < val.GapSize)
+                    {
+                        lastGapSize += spaceValue;
+                        Console.WriteLine($"1st Rep,{val.Repeat},{lastGapSize},{0},{0}");
+                    }
                     var startPrime = val.EndPrime - (ulong)(val.Repeat * val.GapSize);
 
                     Console.WriteLine($"1st Rep,{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
                 }
+
+                lastGapSize = val.GapSize;
             }
 
             var firstRows = new List<GapRowFormat>();
@@ -284,5 +238,68 @@ review.
                 ex = ex.InnerException;
             }
         }
+    }
+
+    private static (List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>) ProcessFileLines(string file)
+    {
+        //Console.WriteLine("Reading From '" + file + "'");
+        var gapRows = new List<GapRowFormat>();
+        var repRows = new List<RepRowFormat>();
+        var rows = new List<RowFormat>();
+        foreach (var row in File.ReadAllLines(file))
+            try
+            {
+                var split = row.Split(',');
+                if (split.Length < 5)
+                    continue;
+                var gapType = split[0];
+                if (gapType == "1st Gap")
+                {
+                    var rowFormat = new GapRowFormat
+                    {
+                        GapType = split[0],
+                        GapSize = uint.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
+                        //Primes = split[2],
+                        EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
+                        StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
+                        When = decimal.TryParse(split[5], out var when) ? when : 0
+                    };
+                    gapRows.Add(rowFormat);
+                }
+                else if (gapType == "1st Rep")
+                {
+                    var repFormat = new RepRowFormat
+                    {
+                        GapType = split[0],
+                        Repeat = int.TryParse(split[1], out var repeat) ? repeat : 0,
+                        GapSize = uint.TryParse(split[2], out var lineGapSize) ? lineGapSize : 0,
+                        EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
+                        StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
+                        When = decimal.TryParse(split[5], out var when) ? when : 0
+                    };
+                    repRows.Add(repFormat);
+                }
+                else
+                {
+                    var rowFormat = new RowFormat
+                    {
+                        GapType = split[0],
+                        GapSize = uint.TryParse(split[1], out var lineGapSize) ? lineGapSize : 0,
+                        EndPrime = ulong.TryParse(split[3], out var endPrime) ? endPrime : 0,
+                        StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
+                        When = decimal.TryParse(split[5], out var when) ? when : 0
+                    };
+                    if (rowFormat.GapType == "LastPrime")
+                        if (rowFormat.GapSize > rowFormat.EndPrime || rowFormat.GapSize == 0)
+                            Console.WriteLine("Interpret Problem");
+                    rows.Add(rowFormat);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e);
+            }
+
+        return (gapRows, repRows, rows);
     }
 }

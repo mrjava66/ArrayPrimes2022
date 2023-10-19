@@ -2,6 +2,34 @@ namespace TestPrime;
 
 public class MakePrimesSieve : IMakePrimes
 {
+    private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5, 7 };
+
+    private Dictionary<ulong, ulong>? _dictAllPrimes;
+
+    public void MakePrimesTask()
+    {
+        var fullDivisorList = new uint[203280222];
+        MakeBaseArrays(fullDivisorList);
+        _dictAllPrimes = fullDivisorList.ToDictionary(x => (ulong)x, x => (ulong)x);
+        if (_dictAllPrimes.ContainsKey(0))
+            _dictAllPrimes.Remove(0);
+        _dictAllPrimes.Add(4294967311, 4294967311);
+    }
+
+    public Dictionary<ulong, ulong> DictAllPrimes
+    {
+        get
+        {
+            while (_dictAllPrimes == null) 
+                MakePrimesTask();
+
+            return _dictAllPrimes;
+        }
+    }
+
+    public int NumPrimes => _dictAllPrimes?.Count ?? 0;
+    public ulong[] ArrayAllPrimes => _dictAllPrimes?.Keys?.ToArray() ?? new ulong[] { 2, 3, 5, 7 };
+
     private static void MakeBaseArrays(uint[] fdl)
     {
         var goal = ulong.MaxValue; // the final value to get.
@@ -39,22 +67,23 @@ public class MakePrimesSieve : IMakePrimes
         ulong arraySize16 = baseArrayUnitSize * 16;
 
         for (var a = 0; a < baseArrayCount; a++)
-            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        {
+            if (arrays[a][l] == 255) continue;
+            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
             {
-                if (arrays[a][l] == 255) continue;
-                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
-                {
-                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                    fdl[++countPrimeNumber] = (uint)prime;
+                var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                fdl[++countPrimeNumber] = (uint)prime;
 
-                    if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                            prime); // don't need to sieve values greater than top.
-                }
+                if (prime < sieveTop)
+                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                        prime); // don't need to sieve values greater than top.
             }
+        }
     }
+
     private static bool IsBitSet(byte b, int pos)
     {
         return (b & (1 << pos)) != 0;
@@ -89,6 +118,7 @@ public class MakePrimesSieve : IMakePrimes
         foreach (var task in tasks)
             task.Wait();
     }
+
     private static void MarkAnArray(ulong arraySize, ulong prime, ulong nextMark, byte[] array)
     {
         var by = (nextMark - 1) / 16;
@@ -111,43 +141,4 @@ public class MakePrimesSieve : IMakePrimes
             }
         }
     }
-    public void MakePrimesTask()
-    {
-        var fullDivisorList = new uint[203280222];
-        MakeBaseArrays(fullDivisorList);
-        ListAllPrimes.RemoveAll(x => true);
-        foreach (var fullDivisor in fullDivisorList)
-        {
-            if (fullDivisor != 0)
-                ListAllPrimes.Add(fullDivisor);
-        }
-        ListAllPrimes.Add(4294967311);
-    }
-
-    private int _dapLen;
-    private Dictionary<ulong, ulong>? _dictAllPrimes;
-
-    public Dictionary<ulong, ulong> DictAllPrimes
-    {
-        get
-        {
-            if (_dictAllPrimes == null)
-            {
-                _dapLen = NumPrimes;
-                _dictAllPrimes = ArrayAllPrimes.ToDictionary(x => x, x => x);
-            }
-
-            if (NumPrimes != _dapLen)
-            {
-                _dapLen = NumPrimes;
-                _dictAllPrimes = ArrayAllPrimes.ToDictionary(x => x, x => x);
-            }
-
-            return _dictAllPrimes;
-        }
-    }
-
-    public int NumPrimes => ListAllPrimes.Count;
-    public ulong[] ArrayAllPrimes => ListAllPrimes.ToArray();
-    private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5, 7 };
 }

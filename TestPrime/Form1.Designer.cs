@@ -36,6 +36,8 @@
             label3 = new Label();
             button2 = new Button();
             richTextBox1 = new RichTextBox();
+            chkDig = new CheckBox();
+            chkEven = new CheckBox();
             SuspendLayout();
             // 
             // textBox1
@@ -91,14 +93,15 @@
             // label3
             // 
             label3.AutoSize = true;
-            label3.Location = new Point(12, 186);
+            label3.Location = new Point(12, 236);
             label3.Name = "label3";
-            label3.Size = new Size(0, 15);
+            label3.Size = new Size(36, 15);
             label3.TabIndex = 7;
+            label3.Text = "Stage";
             // 
             // button2
             // 
-            button2.Location = new Point(12, 160);
+            button2.Location = new Point(12, 210);
             button2.Name = "button2";
             button2.Size = new Size(82, 23);
             button2.TabIndex = 8;
@@ -117,11 +120,33 @@
             richTextBox1.TabIndex = 9;
             richTextBox1.Text = "";
             // 
+            // chkDig
+            // 
+            chkDig.AutoSize = true;
+            chkDig.Location = new Point(12, 160);
+            chkDig.Name = "chkDig";
+            chkDig.Size = new Size(44, 19);
+            chkDig.TabIndex = 10;
+            chkDig.Text = "Dig";
+            chkDig.UseVisualStyleBackColor = true;
+            // 
+            // chkEven
+            // 
+            chkEven.AutoSize = true;
+            chkEven.Location = new Point(11, 185);
+            chkEven.Name = "chkEven";
+            chkEven.Size = new Size(56, 19);
+            chkEven.TabIndex = 11;
+            chkEven.Text = "Evens";
+            chkEven.UseVisualStyleBackColor = true;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(chkEven);
+            Controls.Add(chkDig);
             Controls.Add(richTextBox1);
             Controls.Add(button2);
             Controls.Add(label3);
@@ -146,5 +171,7 @@
         private Label label3;
         private Button button2;
         private RichTextBox richTextBox1;
+        private CheckBox chkDig;
+        private CheckBox chkEven;
     }
 }
