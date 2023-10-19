@@ -288,10 +288,10 @@ public partial class Form1 : Form
 
     private bool? IsPrime(ulong check, Dictionary<ulong, ulong> somePrimes)
     {
-        var p2 = Math.Sqrt(check);
-
         if (somePrimes.ContainsKey(check))
             return true;
+
+        var p2 = Math.Sqrt(check);
         foreach (var p in somePrimes.Keys)
         {
             if (p > p2)
