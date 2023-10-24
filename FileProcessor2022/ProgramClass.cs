@@ -115,7 +115,7 @@ review.
                     Console.WriteLine($"1st Rep,{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
                 }
 
-                lastGapSize = val.GapSize;
+                lastGapSize = val?.GapSize ?? 0;
             }
 
             var firstRows = new List<GapRowFormat>();

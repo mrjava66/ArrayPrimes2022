@@ -1,4 +1,5 @@
-﻿using System.Configuration;
+﻿using System.Collections;
+using System.Configuration;
 
 namespace ArrayPrimes2022;
 
@@ -10,6 +11,9 @@ internal static class ProgramClass
         Anvil0 = new byte[FullAnvil0Size];
     }
 
+    public static bool BigArray => _bigArray;
+    private static bool _bigArray;
+    private static bool _getPreviousWork;
     private static string _basePath = "";
 
     private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
@@ -217,6 +221,14 @@ internal static class ProgramClass
 
     private static void ConfigureSystem()
     {
+        var bigArrayString = ConfigurationManager.AppSettings["BigArray"] ?? "true";
+        // ReSharper disable once SimplifyConditionalTernaryExpression
+        _bigArray = bool.TryParse(bigArrayString, out var bigArray) ? bigArray : true;
+
+        var getPreviousWorkString = ConfigurationManager.AppSettings["GetPreviousWork"] ?? "true";
+        // ReSharper disable once SimplifyConditionalTernaryExpression
+        _getPreviousWork = bool.TryParse(getPreviousWorkString, out var getPreviousWork) ? getPreviousWork : true;
+
         _basePath = ConfigurationManager.AppSettings["basePath"] ?? "";
         if (!string.IsNullOrWhiteSpace(_basePath) && !_basePath.EndsWith("\\"))
             _basePath += "\\";
@@ -291,12 +303,16 @@ internal static class ProgramClass
     private static Dictionary<uint, uint> GetPreviousWork()
     {
         var xd = new Dictionary<uint, uint> { { 0, 0 } };
+
+        if (!_getPreviousWork)
+            return xd;
+
         //return xd;  // enable this to ignore previous work.
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-                where f.EndsWith("log") && f.Contains("\\GapArray.")
-                select f;
+            where f.EndsWith("log") && f.Contains("\\GapArray.")
+            select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -358,7 +374,7 @@ internal static class ProgramClass
             //build a list of previous work.
             var xd = GetPreviousWork();
 
-            Console.WriteLine("Found Existing work.  Files=" + xd.Count);
+            Console.WriteLine($"Found Existing work.  Files={xd.Count}");
 
             QuickCheck(fullDivisorList, now, xd);
             var minBlock = (uint)(_minvalueNumber / (Two32 * blockAssignmentSize));
@@ -494,24 +510,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        {
+            if (arrays[a][l] == 255) continue;
+            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
             {
-                if (arrays[a][l] == 255) continue;
-                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
-                {
-                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                    fdl[++countPrimeNumber] = (uint)prime;
+                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                fdl[++countPrimeNumber] = (uint)prime;
 
-                    gr.ReportGap(prime);
+                gr.ReportGap(prime);
 
-                    //outfile.WriteLine(prime);
-                    if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                            prime); // don't need to sieve values greater than top.
-                }
+                //outfile.WriteLine(prime);
+                if (prime < sieveTop)
+                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                        prime); // don't need to sieve values greater than top.
             }
+        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "GapPrimes.0." + now + ".log", false);
@@ -539,7 +555,7 @@ internal static class ProgramClass
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Console.Error.WriteLine(e);
             }
 
         return taskBuildAnvil;
@@ -603,9 +619,57 @@ internal static class ProgramClass
         return prime;
     }
 
-    private static void SieveProcess(uint[] fdl, uint[] offsets, ulong divisorsFillPosition,
+    private static void SieveProcess(ulong loopMinCheckedValue, uint[] fdl, uint[] offsets, ulong divisorsFillPosition,
         ulong divisorPosition, byte[] bytes0)
     {
+        /*
+         uncomment this to check the Anvil
+        for (ulong i = 1; i < divisorPosition; i++)
+        {
+            var p = fdl[i];
+            var o = offsets[i];
+            var primeByte = p / 8;
+            var primeBit = (int)p % 8;
+            var offsetByte = o / 8;
+            var offsetBit = (int)o % 8;
+
+            while (offsetByte < Two28)
+            {
+                //it is quicker to just check the whole byte, and only when available, check the bit.
+                if (bytes0[offsetByte] != 255)
+                {
+                    var bib = (byte)(1 << offsetBit);
+                    //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
+                    if ((bytes0[offsetByte] & bib) == 0)
+                    {
+                        var loc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
+                        Console.Error.WriteLine($"Should be marked already.{loopMinCheckedValue}:{loc}:{p}");
+                        bytes0[offsetByte] |= bib;
+                    }
+                }
+
+                offsetByte += primeByte;
+                offsetBit += primeBit;
+                if (offsetBit >= 8)
+                {
+                    offsetBit -= 8;
+                    offsetByte++;
+                }
+            }
+
+            var ndp = (offsetByte - Two28) * 8 + (ulong)offsetBit;
+            if (ndp > uint.MaxValue)
+            {
+                Console.Error.WriteLine($"Fixed over with {divisorPosition}:prime:{p}:ndp:{ndp}");
+                ndp -= p;
+            }
+
+            if (ndp > uint.MaxValue)
+                Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
+            offsets[i] = (uint)ndp;
+        }
+        */
+
         for (; divisorPosition < divisorsFillPosition; divisorPosition++)
         {
             var p = fdl[divisorPosition];
@@ -614,29 +678,86 @@ internal static class ProgramClass
             var primeBit = (int)p % 8;
             var offsetByte = o / 8;
             var offsetBit = (int)o % 8;
+
+            #region div3
+
+            //alternate moving p and 2p bits down the array to skip over divisible by 3 bits.
+
+            var markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
+            if (markLoc % 3 == 0)
+            {
+                offsetByte += primeByte;
+                offsetBit += primeBit;
+                if (offsetBit >= 8)
+                {
+                    offsetBit -= 8;
+                    offsetByte++;
+                }
+                markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
+            }
+
+            var onOff = (2 * p + markLoc) % 3 == 0;
+
+            #endregion div3
+
             //this is the main loop, this get's all the action.  ~2^32*(0.5*2^32/log(2^32)) entries and ( 2^32*(0.5*(2^32)/log(2^32)) )*( ((2^32)/log(2^32))*(1/2)*(1/3) ) cycles.
             while (offsetByte < Two28)
             {
+                /*
+                on comment this to check the onOff (i.e. don't check bits that are divisible by 3)
+                markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
+                if (markLoc % 3 == 0)
+                {
+                    Console.Error.WriteLine($"this should not happen.{p}:{markLoc}:{onOff}");
+                }
+                */
+
                 //it is quicker to just check the whole byte, and only when available, check the bit.
                 if (bytes0[offsetByte] != 255)
                 {
                     var bib = (byte)(1 << offsetBit);
                     //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
-                    if ((bytes0[offsetByte] & bib) == 0) bytes0[offsetByte] |= bib;
+                    if ((bytes0[offsetByte] & bib) == 0)
+                    {
+                        bytes0[offsetByte] |= bib;
+                    }
                 }
 
                 offsetByte += primeByte;
                 offsetBit += primeBit;
-                if (offsetBit < 8) continue;
-                offsetBit -= 8;
-                offsetByte++;
+                if (offsetBit >= 8)
+                {
+                    offsetBit -= 8;
+                    offsetByte++;
+                }
+
+                #region div3b
+
+                if (onOff)
+                {
+                    offsetByte += primeByte;
+                    offsetBit += primeBit;
+                    if (offsetBit >= 8)
+                    {
+                        offsetBit -= 8;
+                        offsetByte++;
+                    }
+                }
+
+                onOff = !onOff;
+
+                #endregion div3b
             }
 
-            var ndp = (((ulong)offsetByte) - Two28) * ((ulong)8) + (ulong)offsetBit;
+            var ndp = (offsetByte - Two28) * 8 + (ulong)offsetBit;
             if (ndp > uint.MaxValue)
             {
-                Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
+                Console.Error.WriteLine($"Fixed over with {divisorPosition}:prime:{p}:ndp:{ndp}");
+                ndp -= p;
             }
+
+            if (ndp > uint.MaxValue)
+                Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
             offsets[divisorPosition] = (uint)ndp;
         }
     }
@@ -677,13 +798,13 @@ internal static class ProgramClass
     {
         // process all the primes in segment a.  (a*2^32 -> (a+1)*2^32)
         // ReSharper disable once ArrangeRedundantParentheses
-        GapReportCarryState gapReportCarryState=new GapReportCarryState
+        var gapReportCarryState = new GapReportCarryState
         {
             LastPrime = lastCheckedPrime,
             LastGap = 0,
             GapRepeat = 0
         };
-        for (var a = v1; (a < v2) || (v2 == 0 && a == v1); a++)
+        for (var a = v1; a < v2 || (v2 == 0 && a == v1); a++)
         {
             var grl = new GapReport(gapReportCarryState);
 
@@ -733,7 +854,7 @@ internal static class ProgramClass
             grl.LoudReportGap("AfterBlockCopy"); // log how long it takes to put in the anvil.
 
             const ulong divisorPosition = 9;
-            SieveProcess(fdl, offsets, divisorsFillPosition, divisorPosition, bytes00);
+            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes00);
             grl.LoudReportGap("AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;

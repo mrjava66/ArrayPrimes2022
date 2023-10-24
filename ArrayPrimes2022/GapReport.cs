@@ -105,8 +105,9 @@ public class GapReport
                 $"DistLon,{minDistLonely},Primes,{_lastPrimeNum},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
         }
 
-        if (_lastGap > 0)
-            _gapGrid[_lastGap / 2, ulongGap / 2]++;
+        if (ProgramClass.BigArray)
+            if (_lastGap > 0)
+                _gapGrid[_lastGap / 2, ulongGap / 2]++;
 
         _lastGap = ulongGap;
 
@@ -121,6 +122,14 @@ public class GapReport
                 gaps.AppendLine($"Gap,{i},Found,{_gapFound[0, i]}");
         gapsFile.Write(gaps.ToString());
 
+        if (ProgramClass.BigArray)
+            MakeGrid(gapsFile);
+
+        gapsFile.Flush();
+    }
+
+    private void MakeGrid(TextWriter gapsFile)
+    {
         var maxJ = 0;
         var maxK = 0;
         for (var j = 0; j < _gapGrid.GetLength(0); j++)
@@ -145,7 +154,5 @@ public class GapReport
         }
 
         gapsFile.Write(grid.ToString());
-
-        gapsFile.Flush();
     }
 }
