@@ -311,8 +311,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-            where f.EndsWith("log") && f.Contains("\\GapArray.")
-            select f;
+                where f.EndsWith("log") && f.Contains("\\GapArray.")
+                select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -510,24 +510,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
-        {
-            if (arrays[a][l] == 255) continue;
-            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
-                if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (arrays[a][l] == 255) continue;
+                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+                {
+                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                fdl[++countPrimeNumber] = (uint)prime;
+                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                    fdl[++countPrimeNumber] = (uint)prime;
 
-                gr.ReportGap(prime);
+                    gr.ReportGap(prime);
 
-                //outfile.WriteLine(prime);
-                if (prime < sieveTop)
-                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                        prime); // don't need to sieve values greater than top.
+                    //outfile.WriteLine(prime);
+                    if (prime < sieveTop)
+                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                            prime); // don't need to sieve values greater than top.
+                }
             }
-        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "GapPrimes.0." + now + ".log", false);
@@ -682,6 +682,13 @@ internal static class ProgramClass
             #region div3
 
             //alternate moving p and 2p bits down the array to skip over divisible by 3 bits.
+            var primeByteOn = primeByte + primeByte;
+            var primeBitOn = primeBit + primeBit;
+            if (primeBitOn >= 8)
+            {
+                primeBitOn -= 8;
+                primeByteOn++;
+            }
 
             var markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
             if (markLoc % 3 == 0)
@@ -723,17 +730,19 @@ internal static class ProgramClass
                     }
                 }
 
-                offsetByte += primeByte;
-                offsetBit += primeBit;
-                if (offsetBit >= 8)
-                {
-                    offsetBit -= 8;
-                    offsetByte++;
-                }
-
                 #region div3b
 
                 if (onOff)
+                {
+                    offsetByte += primeByteOn;
+                    offsetBit += primeBitOn;
+                    if (offsetBit >= 8)
+                    {
+                        offsetBit -= 8;
+                        offsetByte++;
+                    }
+                }
+                else
                 {
                     offsetByte += primeByte;
                     offsetBit += primeBit;
