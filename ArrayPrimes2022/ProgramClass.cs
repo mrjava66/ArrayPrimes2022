@@ -1,36 +1,50 @@
-﻿using System.Collections;
-using System.Configuration;
+﻿using System.Configuration;
 
 namespace ArrayPrimes2022;
 
 internal static class ProgramClass
 {
+    private const ulong Two32 = (ulong)uint.MaxValue + 1; //read as 2 to the 32
+    private const ulong Two31 = Two32 / 2;
+    private const ulong Two30 = Two31 / 2;
+    private const ulong Two28 = Two30 / 4;
+
+    public static bool BigArray { get; private set; } //controls if the two-dimensional gap array is made and displayed.
+
     static ProgramClass()
     {
-        //Anvil = new byte[FullAnvilSize];
-        Anvil0 = new byte[FullAnvil0Size];
+        Anvil = new byte[FullAnvilSize];
     }
 
-    public static bool BigArray => _bigArray;
-    private static bool _bigArray;
-    private static bool _getPreviousWork;
-    private static string _basePath = "";
+    private static string _quickCheck = string.Empty;  // use values in the config to check a specific range
+    private static bool _runAllBlocksInOrder = true;   // run the entire number line in order, instead of the places where the big gaps are.
+    private static bool _getPreviousWork;              // retrieve previous work and not rerun old blocks.
+    private static bool _allowQuickCheckBailout = true;// quick check does not rerun old blocks.
+    private static bool _reverse;                      // run the number line in reverse down from 2^64
+    private static string _basePath = "";              // where the files are.
+    private static DateTime _startTimeSpacer = DateTime.Now;  // limits the starting of tasks to one new task per 1.2 seconds
+    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
+
+    /// <summary>
+    ///     the array that holds all the possible arrangements of the first 8 divisors that we will need.
+    ///     future work will allow this to cover the next 5.
+    /// </summary>
+    private static readonly byte[] Anvil;
 
     private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
     private const ulong AnvilSize2 = 29 * 31 * 37 * 41 * 43;
+    private const ulong FullAnvilSize = AnvilSize * (8 + 1) + Two28;
 
-    //private const ulong FullAnvilSize = AnvilSize + Two28;
-    private const ulong FullAnvil0Size = AnvilSize * (8 + 1) + Two28;
+    /// <summary>
+    ///     The minimum value to check.
+    /// </summary>
+    private static ulong _minvalueNumber;
 
-    private const ulong Two28 = Two30 / 4;
-    private const ulong Two30 = Two31 / 2;
-    private const ulong Two31 = Two32 / 2;
-    private const ulong Two32 = (ulong)uint.MaxValue + 1;
+    /// <summary>
+    ///     How many tasks to run concurrently.  Normally overriden in the .config.
+    /// </summary>
+    private static int _taskLimit = 3;
 
-    private static DateTime _startTimeSpacer = DateTime.Now;
-    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
-
-    // ReSharper disable once UnusedMember.Local
     // List of Blocks of 128*Two32 numbers (1/2T) that contain a first gap.
     // This list REQUIRES a block size of 128 to be correct.
     // ReSharper disable once ArrangeObjectCreationWhenTypeEvident
@@ -83,45 +97,17 @@ internal static class ProgramClass
     };
 
     /// <summary>
-    ///     the array that holds all the possible arrangements of the first 7 divisors that we will need.
-    ///     future work will allow this to cover the first 9.
-    /// </summary>
-    //private static readonly byte[] Anvil;
-    private static readonly byte[] Anvil0;
-
-    /// <summary>
-    ///     The minimum value to check.
-    /// </summary>
-    private static ulong _minvalueNumber;
-
-    private static string _quickCheck = string.Empty;
-
-    private static bool _runAllBlocksInOrder = true;
-
-    /// <summary>
-    ///     How many tasks to run concurrently.  Normally overriden in the .config.
-    /// </summary>
-    private static int _taskLimit = 3;
-
-    private static bool _allowQuickCheckBailout = true;
-
-    private static bool _reverse;
-
-    /// <summary>
     ///     All the possible arrangements of the divisors 3-23.
     /// </summary>
     private static void BuildAnvil()
     {
         //build the full list
         var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23 };
-
-        //BuildAnvilOld(dl);
-
         BuildAnvil0(dl);
     }
 
     /*
-    private static void BuildAnvilOld(int[] dl)
+    private static void BuildAnvilNew(int[] dl)
     {
         {
             // three works differently.  this reduces the number of memory writes to 3/8 of what 3 normally does.  Also, the memory reads are not needed.
@@ -203,12 +189,12 @@ internal static class ProgramClass
             var offsetByte = (ulong)((p - 1) / 2 / 8);
             var offsetBit = (p - 1) / 2 % 8;
 
-            while (offsetByte < FullAnvil0Size)
+            while (offsetByte < FullAnvilSize)
             {
                 var bib = (byte)(1 << offsetBit);
 
-                if ((Anvil0[offsetByte] & bib) == 0)
-                    Anvil0[offsetByte] |= bib;
+                if ((Anvil[offsetByte] & bib) == 0)
+                    Anvil[offsetByte] |= bib;
 
                 offsetByte += primeByte;
                 offsetBit += primeBit;
@@ -223,7 +209,7 @@ internal static class ProgramClass
     {
         var bigArrayString = ConfigurationManager.AppSettings["BigArray"] ?? "true";
         // ReSharper disable once SimplifyConditionalTernaryExpression
-        _bigArray = bool.TryParse(bigArrayString, out var bigArray) ? bigArray : true;
+        BigArray = bool.TryParse(bigArrayString, out var bigArray) ? bigArray : true;
 
         var getPreviousWorkString = ConfigurationManager.AppSettings["GetPreviousWork"] ?? "true";
         // ReSharper disable once SimplifyConditionalTernaryExpression
@@ -234,16 +220,18 @@ internal static class ProgramClass
             _basePath += "\\";
 
         var taskLimit = ConfigurationManager.AppSettings["taskLimit"] ?? "-1";
-
         if (int.TryParse(taskLimit, out var taskLimitInt))
             if (taskLimitInt > 0)
+            {
                 _taskLimit = taskLimitInt;
+            }
             else
             {
                 _taskLimit = Environment.ProcessorCount + taskLimitInt;
                 if (_taskLimit < 1)
                     _taskLimit = Environment.ProcessorCount - 1;
             }
+
         Console.WriteLine($"TaskLimit={_taskLimit}");
 
         const string linear = "linear";
@@ -271,42 +259,6 @@ internal static class ProgramClass
         else if (double.TryParse(minvalueString, out var doubleResult)) _minvalueNumber = (ulong)doubleResult;
     }
 
-    /*
-        /// <summary>
-        ///     returns the position in the anvil to apply to this list.
-        /// </summary>
-        /// <returns></returns>
-        private static int GetAnvilPosition(IReadOnlyList<uint> offsets)
-        {
-            // ReSharper disable once JoinDeclarationAndInitializer
-            int retval;
-
-            //retval = (offsets[1]*(2*5)+offsets[2]*(1*3))%(3*5);
-            //retval = (((int)offsets[1] * (2*5*7)) + ((int)offsets[2] * (3*3*7)) + ((int)offsets[3] * (6*3*5))) % (3 * 5 * 7);
-            //retval = ((int)(offsets[1] * (1 * 5 * 7 * 11) + offsets[2] * (3 * 3 * 7 * 11) + offsets[3] * (5 * 3 * 5 * 11) + offsets[4] * (8 * 3 * 5 * 7)) % (3 * 5 * 7 * 11));
-            //retval = (int)(
-            //             offsets[1] * (1 * 5 * 7 * 11 * 13) +
-            //             offsets[2] * (1 * 3 * 7 * 11 * 13) +
-            //             offsets[3] * (2 * 3 * 5 * 11 * 13) +
-            //             offsets[4] * (4 * 3 * 5 * 7 * 13) +
-            //             offsets[5] * (9 * 3 * 5 * 7 * 11) +
-            //             0
-            //         ) % (3 * 5 * 7 * 11 * 13);
-
-            retval = (int)(
-                offsets[1] * (2 * 5 * 7 * 11 * 13 * 17) +
-                offsets[2] * (3 * 3 * 7 * 11 * 13 * 17) +
-                offsets[3] * (3 * 3 * 5 * 11 * 13 * 17) +
-                offsets[4] * (8 * 3 * 5 * 7 * 13 * 17) +
-                offsets[5] * (12 * 3 * 5 * 7 * 11 * 17) +
-                offsets[6] * (9 * 3 * 5 * 7 * 11 * 13) +
-                0
-            ) % (3 * 5 * 7 * 11 * 13 * 17);
-
-            return retval;
-        }
-    */
-
     private static Dictionary<uint, uint> GetPreviousWork()
     {
         var xd = new Dictionary<uint, uint> { { 0, 0 } };
@@ -318,8 +270,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-                where f.EndsWith("log") && f.Contains("\\GapArray.")
-                select f;
+            where f.EndsWith("log") && f.Contains("\\GapArray.")
+            select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -330,7 +282,7 @@ internal static class ProgramClass
             var intStr = xx.Substring(sd + 1, td - (sd + 1));
 
             if (!uint.TryParse(intStr, out var intInt)) continue;
-            if (!xd.Keys.Contains(intInt)) xd.Add(intInt, intInt);
+            if (!xd.Keys.Contains(intInt)) xd.TryAdd(intInt, intInt);
         }
 
         return xd;
@@ -517,24 +469,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        {
+            if (arrays[a][l] == 255) continue;
+            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
             {
-                if (arrays[a][l] == 255) continue;
-                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
-                {
-                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                    fdl[++countPrimeNumber] = (uint)prime;
+                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                fdl[++countPrimeNumber] = (uint)prime;
 
-                    gr.ReportGap(prime);
+                gr.ReportGap(prime);
 
-                    //outfile.WriteLine(prime);
-                    if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                            prime); // don't need to sieve values greater than top.
-                }
+                //outfile.WriteLine(prime);
+                if (prime < sieveTop)
+                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                        prime); // don't need to sieve values greater than top.
             }
+        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "GapPrimes.0." + now + ".log", false);
@@ -614,7 +566,7 @@ internal static class ProgramClass
         }
     }
 
-    // the main way I improve this code is to call it less.  (4B/128)*(~1e6) right now.
+    // the main way I improve this code is to call it less.  (4B)*(~1e8) right now.
     private static uint PopulateDivisor(uint[] fdl, uint[] offsets, ulong loopMinCheckedValue,
         ulong divisorsFillPosition)
     {
@@ -707,6 +659,7 @@ internal static class ProgramClass
                     offsetBit -= 8;
                     offsetByte++;
                 }
+
                 markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
             }
 
@@ -718,7 +671,7 @@ internal static class ProgramClass
             while (offsetByte < Two28)
             {
                 /*
-                on comment this to check the onOff (i.e. don't check bits that are divisible by 3)
+                uncomment this to check the onOff (i.e. don't check bits that are divisible by 3)
                 markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
                 if (markLoc % 3 == 0)
                 {
@@ -731,10 +684,7 @@ internal static class ProgramClass
                 {
                     var bib = (byte)(1 << offsetBit);
                     //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
-                    if ((bytes0[offsetByte] & bib) == 0)
-                    {
-                        bytes0[offsetByte] |= bib;
-                    }
+                    if ((bytes0[offsetByte] & bib) == 0) bytes0[offsetByte] |= bib;
                 }
 
                 #region div3b
@@ -743,21 +693,17 @@ internal static class ProgramClass
                 {
                     offsetByte += primeByteOn;
                     offsetBit += primeBitOn;
-                    if (offsetBit >= 8)
-                    {
-                        offsetBit -= 8;
-                        offsetByte++;
-                    }
                 }
                 else
                 {
                     offsetByte += primeByte;
                     offsetBit += primeBit;
-                    if (offsetBit >= 8)
-                    {
-                        offsetBit -= 8;
-                        offsetByte++;
-                    }
+                }
+
+                if (offsetBit >= 8)
+                {
+                    offsetBit -= 8;
+                    offsetByte++;
                 }
 
                 onOff = !onOff;
@@ -802,12 +748,14 @@ internal static class ProgramClass
         var predictArraySize = (ulong)(maxDivisor / logMaxDivisor * (1 + 1.2762 / logMaxDivisor));
         var offsets = new uint[predictArraySize];
         //Divisor[] divisors = new Divisor[predictArraySize]; (use fdl -> full divisor array)
-        var lastCheckedPrime = v1 * Two32; // the gap on the first and last batch will be odd.  But, we can keep track of the rest.
+        var lastCheckedPrime =
+            v1 * Two32; // the gap on the first and last batch will be odd.  But, we can keep track of the rest.
 
         ProcessThisStuffCompact(fdl, v1, v2, now, offsets, lastCheckedPrime);
     }
 
-    private static void ProcessThisStuffCompact(uint[] fdl, uint v1, uint v2, string now, uint[] offsets, ulong lastCheckedPrime)
+    private static void ProcessThisStuffCompact(uint[] fdl, uint v1, uint v2, string now, uint[] offsets,
+        ulong lastCheckedPrime)
     {
         // process all the primes in segment a.  (a*2^32 -> (a+1)*2^32)
         // ReSharper disable once ArrangeRedundantParentheses
@@ -837,7 +785,6 @@ internal static class ProgramClass
 
             ulong divisorFillLevel = 0;
             ulong divisorsFillPosition = 1; // don't use prime#0 (2).
-            //divisorsFillPosition = 1;
             while (divisorFillLevel < loopMaxDivisor)
             {
                 divisorFillLevel = PopulateDivisor(fdl, offsets, loopMinCheckedValue, divisorsFillPosition);
@@ -862,7 +809,7 @@ internal static class ProgramClass
             //Console.WriteLine($"{offset}:{notOffset}:{modX}");
             //Buffer.BlockCopy(Anvil, offset, bytes00, 0, (int)Two28);
             //var bytes000 = new byte[Two28];
-            Buffer.BlockCopy(Anvil0, (int)notOffset, bytes00, 0, (int)Two28);
+            Buffer.BlockCopy(Anvil, (int)notOffset, bytes00, 0, (int)Two28);
             //var cmp=ArrayCompare(bytes00, bytes000);
             //bytes000 = null;
             //GC.Collect();
@@ -949,67 +896,6 @@ internal static class ProgramClass
         if (Console.KeyAvailable)
             Console.ReadKey();
     }
-
-    // ReSharper disable StringLiteralTypo
-    // ReSharper disable CommentTypo
-    /*
-            [DllImport("msvcrt.dll", CallingConvention = CallingConvention.Cdecl)]
-            static extern int memcmp(byte[] b1, byte[] b2, long count);
-    */
-
-    /*
-            private static bool ByteArrayCompare(byte[] b1, byte[] b2)
-            {
-                // Validate buffers are the same length.
-                // This also ensures that the count does not exceed the length of either buffer.
-                return b1.Length == b2.Length && memcmp(b1, b2, b1.Length) == 0;
-            }
-    */
-    // ReSharper restore CommentTypo
-    // ReSharper restore IdentifierTypo
-    /*
-    private static bool ArrayCompare<T>(IReadOnlyList<T> array1, IReadOnlyList<T> array2)
-    {
-        if (array1 == null && array2 == null) return true;  //if both null, true, equal.
-        if (array1 == null || array2 == null) return false; //if one is null, false, not equal.
-        if (array1.Count != array2.Count) return false; // if lengths are not equal, false, not equal.
-        for (var i = 0; i < array1.Count; i++)
-        {
-            if (array1[i].Equals(array2[i])) continue;
-            Console.WriteLine("unequal at {0} with {1},{2}", i, array1[i], array2[i]);
-            return false;  // this element is not equal, not equal.
-        }
-        return true;
-    }
-    */
-    /*
-            private static void FindAnvilPosition(byte[] bytes0, uint[] offsets)
-            {
-                var predict = GetAnvilPosition(offsets);
-                var bytes00 = new byte[Two28];
-                var i = predict;
-
-                while (i / 2 < 1 + 3 * 5 * 7 * 11 * 13 * 17)//
-                {
-                    Buffer.BlockCopy(_anvil, i, bytes00, 0, (int)Two28);
-                    if (ByteArrayCompare(bytes00, bytes0))
-                    {
-                        Console.WriteLine("pos," + i + ",o3," + offsets[1] + ",o5," + offsets[2] + ",o7," + offsets[3] + ",o11," + offsets[4] + ",o13," + offsets[5] + ",o17," + offsets[6] + ",prdt," + predict);
-                        // ReSharper disable once RedundantAssignment
-                        // this helps the GC
-                        bytes00 = null;
-                        GC.Collect();
-                        return;
-                    }
-                    i += 1 * 3 * 5 * 7 * 11 * 13;//  ;
-                }
-                // ReSharper disable once RedundantAssignment
-                // this helps the GC
-                bytes00 = null;
-                GC.Collect();
-                Console.WriteLine("Could not find position for " + offsets[1] + ":" + offsets[2] + ":" + offsets[3] + ":" + offsets[4] + ":" + offsets[5]);
-            }
-    */
 
     private static void StartUpSieve(List<byte[]> arrays, int arrayCount, ulong arraySize, ulong prime)
     {
