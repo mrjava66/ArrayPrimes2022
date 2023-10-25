@@ -233,11 +233,18 @@ internal static class ProgramClass
         if (!string.IsNullOrWhiteSpace(_basePath) && !_basePath.EndsWith("\\"))
             _basePath += "\\";
 
-        var taskLimit = ConfigurationManager.AppSettings["taskLimit"];
+        var taskLimit = ConfigurationManager.AppSettings["taskLimit"] ?? "-1";
 
         if (int.TryParse(taskLimit, out var taskLimitInt))
             if (taskLimitInt > 0)
                 _taskLimit = taskLimitInt;
+            else
+            {
+                _taskLimit = Environment.ProcessorCount + taskLimitInt;
+                if (_taskLimit < 1)
+                    _taskLimit = Environment.ProcessorCount - 1;
+            }
+        Console.WriteLine($"TaskLimit={_taskLimit}");
 
         const string linear = "linear";
         var blockOrder = (ConfigurationManager.AppSettings["BlockOrder"] ?? linear).ToLower();
@@ -257,11 +264,11 @@ internal static class ProgramClass
         // ReSharper disable once SimplifyConditionalTernaryExpression
         _allowQuickCheckBailout = didParse ? val : true;
 
-        var minvalueStr = ConfigurationManager.AppSettings["MinValue"] ?? "";
+        var minvalueString = (ConfigurationManager.AppSettings["MinValue"] ?? "").Replace(",", "");
 
-        if (ulong.TryParse(minvalueStr, out var ulongResult))
+        if (ulong.TryParse(minvalueString, out var ulongResult))
             _minvalueNumber = ulongResult;
-        else if (double.TryParse(minvalueStr, out var doubleResult)) _minvalueNumber = (ulong)doubleResult;
+        else if (double.TryParse(minvalueString, out var doubleResult)) _minvalueNumber = (ulong)doubleResult;
     }
 
     /*
@@ -758,8 +765,9 @@ internal static class ProgramClass
                 #endregion div3b
             }
 
-            var ndp = (offsetByte - Two28) * 8 + (ulong)offsetBit;
-            if (ndp > uint.MaxValue)
+            /*
+            var ndp = ((ulong)offsetByte - Two28) * 8 + (ulong)offsetBit;
+            while (ndp > uint.MaxValue)
             {
                 Console.Error.WriteLine($"Fixed over with {divisorPosition}:prime:{p}:ndp:{ndp}");
                 ndp -= p;
@@ -768,6 +776,7 @@ internal static class ProgramClass
             if (ndp > uint.MaxValue)
                 Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
             offsets[divisorPosition] = (uint)ndp;
+            */
         }
     }
 
@@ -793,17 +802,12 @@ internal static class ProgramClass
         var predictArraySize = (ulong)(maxDivisor / logMaxDivisor * (1 + 1.2762 / logMaxDivisor));
         var offsets = new uint[predictArraySize];
         //Divisor[] divisors = new Divisor[predictArraySize]; (use fdl -> full divisor array)
-        const ulong divisorFillLevel = 0;
-        const ulong divisorsFillPosition = 1; // don't use prime#0 (2).
-        var lastCheckedPrime =
-            v1 * Two32; // the gap on the first and last batch will be odd.  But, we can keep track of the rest.
+        var lastCheckedPrime = v1 * Two32; // the gap on the first and last batch will be odd.  But, we can keep track of the rest.
 
-        ProcessThisStuffCompact(fdl, v1, v2, now, divisorFillLevel, offsets, divisorsFillPosition,
-            lastCheckedPrime);
+        ProcessThisStuffCompact(fdl, v1, v2, now, offsets, lastCheckedPrime);
     }
 
-    private static void ProcessThisStuffCompact(uint[] fdl, uint v1, uint v2, string now, ulong divisorFillLevel,
-        uint[] offsets, ulong divisorsFillPosition, ulong lastCheckedPrime)
+    private static void ProcessThisStuffCompact(uint[] fdl, uint v1, uint v2, string now, uint[] offsets, ulong lastCheckedPrime)
     {
         // process all the primes in segment a.  (a*2^32 -> (a+1)*2^32)
         // ReSharper disable once ArrangeRedundantParentheses
@@ -831,6 +835,9 @@ internal static class ProgramClass
             if (loopMaxDivisor > fdl[^2])
                 loopMaxDivisor = fdl[^2];
 
+            ulong divisorFillLevel = 0;
+            ulong divisorsFillPosition = 1; // don't use prime#0 (2).
+            //divisorsFillPosition = 1;
             while (divisorFillLevel < loopMaxDivisor)
             {
                 divisorFillLevel = PopulateDivisor(fdl, offsets, loopMinCheckedValue, divisorsFillPosition);
@@ -841,10 +848,10 @@ internal static class ProgramClass
 
             //// markup the array. (use the divisor array, update the divisor array)
             var bytes00 = new byte[Two28];
-            var offsetsAnvil = new uint[7];
+            //var offsetsAnvil = new uint[7];
 
             //the anvil process does not maintain these values, they need to be recalculated every loop.
-            for (ulong i = 1; i < 7; i++) PopulateDivisor(fdl, offsetsAnvil, loopMinCheckedValue, i);
+            //for (ulong i = 1; i < 7; i++) PopulateDivisor(fdl, offsetsAnvil, loopMinCheckedValue, i);
 
             //var offset = GetAnvilPosition(offsetsAnvil);
             //const ulong modX = 3 * 5 * 7 * 11 * 13 * 17;
@@ -881,13 +888,16 @@ internal static class ProgramClass
             }
 
             // ReSharper disable once RedundantAssignment
+            // affirmatively manage memory on this.
             bytes00 = null;
             GC.Collect();
 
             if (a + 1 == v2)
                 grl.ReportGap(loopMaxCheckedValue); // puts an odd length gap at the end.
+            /*
             else
                 lastCheckedPrime = prime;
+            */
             var gapFile = new StreamWriter(_basePath + "GapPrimes." + a + "." + now + ".log", false);
             grl.LastPrime(prime, gapFile);
 
