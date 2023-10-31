@@ -927,3 +927,14 @@ internal static class ProgramClass
             task.Wait();
     }
 }
+
+public class PrimeDivisor
+{
+    public ulong Prime { get; set; }
+    public uint PrimeByte { get; set; }
+    public byte PrimeBit { get; set; }
+
+    public uint Prime2Byte { get; set; }
+    public byte Prime2Bit { get; set; }
+
+}
