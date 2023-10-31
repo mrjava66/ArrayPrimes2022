@@ -845,11 +845,14 @@ internal static class ProgramClass
             else
                 lastCheckedPrime = prime;
             */
-            var gapFile = new StreamWriter(_basePath + "GapPrimes." + a + "." + now + ".log", false);
+            var dirPath = $"{a / 1024}\\{a / (1024 * 1024)}\\";
+            var dirMakePath = _basePath + dirPath;
+            Directory.CreateDirectory(dirMakePath);
+            var gapFile = new StreamWriter(dirMakePath + "GapPrimes." + a + "." + now + ".log", false);
             grl.LastPrime(prime, gapFile);
 
             // report on the array.
-            var gapsFile = new StreamWriter(_basePath + "GapArray." + a + "." + now + ".log", false);
+            var gapsFile = new StreamWriter(dirMakePath + "GapArray." + a + "." + now + ".log", false);
             grl.ReportGaps(gapsFile);
             gapReportCarryState = grl.State;
         }
