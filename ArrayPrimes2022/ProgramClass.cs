@@ -1,4 +1,5 @@
 ﻿using System.Configuration;
+using System.Diagnostics;
 
 namespace ArrayPrimes2022;
 
@@ -39,6 +40,8 @@ internal static class ProgramClass
     ///     The minimum value to check.
     /// </summary>
     private static ulong _minvalueNumber;
+
+    private static ulong _blockOffset = 0;
 
     /// <summary>
     ///     How many tasks to run concurrently.  Normally overriden in the .config.
@@ -257,6 +260,27 @@ internal static class ProgramClass
         if (ulong.TryParse(minvalueString, out var ulongResult))
             _minvalueNumber = ulongResult;
         else if (double.TryParse(minvalueString, out var doubleResult)) _minvalueNumber = (ulong)doubleResult;
+
+        try
+        {
+            var blockOffsetString = (ConfigurationManager.AppSettings["BlockOffset"] ?? "").ToLower();
+            var me = Environment.MachineName.ToLower() + ",";
+            var loc = blockOffsetString.IndexOf(me, StringComparison.Ordinal);
+            if (loc >= 0)
+            {
+                var numString = blockOffsetString.Substring(loc + me.Length).Split(";")[0];
+                var didBlockOffset = ulong.TryParse(numString, out var blockOffset);
+                if (didBlockOffset)
+                    _blockOffset = blockOffset;
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Block Offset Error");
+            Console.Error.WriteLine("Block Offset Error");
+            Console.Error.WriteLine(e.Message);
+        }
+
     }
 
     private static Dictionary<uint, uint> GetPreviousWork()
@@ -373,6 +397,12 @@ internal static class ProgramClass
                 }
 
                 if (minvalue == maxvalue) continue;
+
+                if (_blockOffset > 0)
+                {
+                    _blockOffset--;
+                    continue;
+                }
 
                 ManageTasks(tasks);
 
