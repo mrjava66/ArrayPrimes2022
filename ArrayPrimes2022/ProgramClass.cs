@@ -1,5 +1,4 @@
 ﻿using System.Configuration;
-using System.Diagnostics;
 
 namespace ArrayPrimes2022;
 
@@ -10,20 +9,24 @@ internal static class ProgramClass
     private const ulong Two30 = Two31 / 2;
     private const ulong Two28 = Two30 / 4;
 
-    public static bool BigArray { get; private set; } //controls if the two-dimensional gap array is made and displayed.
+    private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
+    private const ulong AnvilSize2 = 29 * 31 * 37 * 41 * 43;
+    private const ulong FullAnvilSize = AnvilSize * (8 + 1) + Two28;
 
-    static ProgramClass()
-    {
-        Anvil = new byte[FullAnvilSize];
-    }
+    private static string _quickCheck = string.Empty; // use values in the config to check a specific range
 
-    private static string _quickCheck = string.Empty;  // use values in the config to check a specific range
-    private static bool _runAllBlocksInOrder = true;   // run the entire number line in order, instead of the places where the big gaps are.
-    private static bool _getPreviousWork;              // retrieve previous work and not rerun old blocks.
-    private static bool _allowQuickCheckBailout = true;// quick check does not rerun old blocks.
-    private static bool _reverse;                      // run the number line in reverse down from 2^64
-    private static string _basePath = "";              // where the files are.
-    private static DateTime _startTimeSpacer = DateTime.Now;  // limits the starting of tasks to one new task per 1.2 seconds
+    private static bool
+        _runAllBlocksInOrder =
+            true; // run the entire number line in order, instead of the places where the big gaps are.
+
+    private static bool _getPreviousWork; // retrieve previous work and not rerun old blocks.
+    private static bool _allowQuickCheckBailout = true; // quick check does not rerun old blocks.
+    private static bool _reverse; // run the number line in reverse down from 2^64
+    private static string _basePath = ""; // where the files are.
+
+    private static DateTime
+        _startTimeSpacer = DateTime.Now; // limits the starting of tasks to one new task per 1.2 seconds
+
     private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
 
     /// <summary>
@@ -32,16 +35,13 @@ internal static class ProgramClass
     /// </summary>
     private static readonly byte[] Anvil;
 
-    private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
-    private const ulong AnvilSize2 = 29 * 31 * 37 * 41 * 43;
-    private const ulong FullAnvilSize = AnvilSize * (8 + 1) + Two28;
-
     /// <summary>
     ///     The minimum value to check.
     /// </summary>
     private static ulong _minvalueNumber;
 
-    private static ulong _blockOffset = 0;
+    private static ulong _blockOffsetConfig;
+    private static ulong _blockOffset;
 
     /// <summary>
     ///     How many tasks to run concurrently.  Normally overriden in the .config.
@@ -98,6 +98,16 @@ internal static class ProgramClass
         21093154, 23075546, 23998453, 24578845, 24617240, 27194278, 27595883,
         28322808, 30837039, 31821539, 31931132, 32157284, 33399147
     };
+
+    private static readonly TimeSpan GetPreviousWorkFrequency = new(1, 0, 0);
+    private static DateTime _getPreviousWorkTime = DateTime.Now + GetPreviousWorkFrequency;
+
+    static ProgramClass()
+    {
+        Anvil = new byte[FullAnvilSize];
+    }
+
+    public static bool BigArray { get; private set; } //controls if the two-dimensional gap array is made and displayed.
 
     /// <summary>
     ///     All the possible arrangements of the divisors 3-23.
@@ -271,7 +281,10 @@ internal static class ProgramClass
                 var numString = blockOffsetString.Substring(loc + me.Length).Split(";")[0];
                 var didBlockOffset = ulong.TryParse(numString, out var blockOffset);
                 if (didBlockOffset)
+                {
+                    _blockOffsetConfig = blockOffset;
                     _blockOffset = blockOffset;
+                }
             }
         }
         catch (Exception e)
@@ -280,7 +293,6 @@ internal static class ProgramClass
             Console.Error.WriteLine("Block Offset Error");
             Console.Error.WriteLine(e.Message);
         }
-
     }
 
     private static Dictionary<uint, uint> GetPreviousWork()
@@ -294,8 +306,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-                where f.EndsWith("log") && f.Contains("\\GapArray.")
-                select f;
+            where f.EndsWith("log") && f.Contains("\\GapArray.")
+            select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -406,9 +418,10 @@ internal static class ProgramClass
 
                 ManageTasks(tasks);
 
+                MaintainPreviousWork(ref xd, firstBlock, runBlock, lastBlock, minBlock, blockAssignmentSize);
+
                 StartNewSpacer();
-                var taskE = Task.Factory.StartNew(() =>
-                    ProcessNumberBlocks(fullDivisorList, minvalue, maxvalue, now));
+                var taskE = Task.Factory.StartNew(() => ProcessNumberBlocks(fullDivisorList, minvalue, maxvalue, now));
                 tasks.Add(taskE);
                 //ProcessNumberBlocks(fullDivisorList, minvalue, maxvalue, now);
                 for (var i = minvalue; i < maxvalue; i++)
@@ -428,6 +441,42 @@ internal static class ProgramClass
             {
                 Console.Error.WriteLine(ex);
                 ex = ex.InnerException;
+            }
+        }
+    }
+
+    private static void MaintainPreviousWork(ref Dictionary<uint, uint> xd, uint firstBlock, uint runBlock,
+        uint lastBlock, uint minBlock, uint blockAssignmentSize)
+    {
+        if (_getPreviousWorkTime <= DateTime.Now) 
+            //not time to try
+            return;
+
+        _getPreviousWorkTime = DateTime.Now + GetPreviousWorkFrequency;
+        xd = GetPreviousWork();
+
+        if (_blockOffsetConfig <= 0) 
+            //no separator to maintain.
+            return;
+
+        //recalculate block offset
+        _blockOffset = _blockOffsetConfig;
+        for (var xBlock = firstBlock; xBlock <= runBlock && xBlock < lastBlock; xBlock++)
+        {
+            if (xBlock < minBlock) continue;
+            var xMin = xBlock * blockAssignmentSize;
+            var xMax = (xBlock + 1) * blockAssignmentSize;
+            while (xMin < xMax)
+            {
+                if (!xd.ContainsKey(xMin))
+                    break;
+                xMin++;
+            }
+
+            if (xMin == xMax) continue;
+            if (_blockOffset > 0)
+            {
+                _blockOffset--;
             }
         }
     }
@@ -499,24 +548,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        {
+            if (arrays[a][l] == 255) continue;
+            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
             {
-                if (arrays[a][l] == 255) continue;
-                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
-                {
-                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                    fdl[++countPrimeNumber] = (uint)prime;
+                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                fdl[++countPrimeNumber] = (uint)prime;
 
-                    gr.ReportGap(prime);
+                gr.ReportGap(prime);
 
-                    //outfile.WriteLine(prime);
-                    if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                            prime); // don't need to sieve values greater than top.
-                }
+                //outfile.WriteLine(prime);
+                if (prime < sieveTop)
+                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                        prime); // don't need to sieve values greater than top.
             }
+        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "GapPrimes.0." + now + ".log", false);
@@ -878,19 +927,17 @@ internal static class ProgramClass
             var dirPath = $"{a / (1024 * 1024)}\\{a / 1024}\\";
             var dirMakePath = _basePath + dirPath;
             while (!Directory.Exists(dirMakePath))
-            {
                 try
                 {
-                    var createDirectory=Directory.CreateDirectory(dirMakePath);
+                    var createDirectory = Directory.CreateDirectory(dirMakePath);
                     Console.WriteLine($"{createDirectory.FullName} made");
                 }
                 catch (Exception e)
                 {
                     Console.Error.WriteLine(e);
                 }
-            }
 
-            StreamWriter? gapFile=null;
+            StreamWriter? gapFile = null;
             try
             {
                 while (gapFile == null)
@@ -905,10 +952,10 @@ internal static class ProgramClass
             }
 
             // report on the array.
-            StreamWriter? gapsFile=null;
+            StreamWriter? gapsFile = null;
             try
             {
-                while (gapsFile==null)
+                while (gapsFile == null)
                 {
                     gapsFile = new StreamWriter(dirMakePath + "GapArray." + a + "." + now + ".log", false);
                     grl.ReportGaps(gapsFile);
@@ -918,6 +965,7 @@ internal static class ProgramClass
             {
                 Console.Error.WriteLine(e);
             }
+
             gapReportCarryState = grl.State;
         }
     }
@@ -1003,5 +1051,4 @@ public class PrimeDivisor
 
     public uint Prime2Byte { get; set; }
     public byte Prime2Bit { get; set; }
-
 }

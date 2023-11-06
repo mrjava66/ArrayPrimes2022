@@ -11,6 +11,8 @@ internal static class ProgramClass
     private static readonly Dictionary<(string?, uint), RowFormat> allRows = new();
     private static readonly List<RowFormat> allLastPrimeRows = new();
 
+    public static bool _LastPrimeBlocks { get; set; }
+
     public static void MainProgram()
     {
         try
@@ -30,12 +32,26 @@ internal static class ProgramClass
             var so = SearchOption.TopDirectoryOnly;
             try
             {
-                var opts = ConfigurationManager.AppSettings["SubDirectories"]?.ToUpper() ?? "";
-                if (opts.StartsWith("Y") || opts.StartsWith("1") || opts.StartsWith("T"))
+                var optString = ConfigurationManager.AppSettings["SubDirectories"]?.ToUpper() ?? "true";
+                var didOpts = bool.TryParse(optString, out var opt);
+                if (didOpts && opt)
                     so = SearchOption.AllDirectories;
             }
             catch (Exception e)
             {
+                Console.WriteLine(e.Message);
+            }
+
+            try
+            {
+                var lpbString = ConfigurationManager.AppSettings["LastPrimeBlocks"]?.ToUpper() ?? "true";
+                var didLpb = bool.TryParse(lpbString, out var lpb);
+                if (didLpb)
+                    _LastPrimeBlocks = lpb;
+            }
+            catch (Exception e)
+            {
+                _LastPrimeBlocks = false;
                 Console.WriteLine(e.Message);
             }
 
@@ -73,17 +89,27 @@ internal static class ProgramClass
                 if (val.StartPrime == lastStartPrime)
                     continue;
                 lastStartPrime = val.StartPrime;
-                var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
-                Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
+                if (_LastPrimeBlocks)
+                {
+                    var endPrime = val.StartPrime != val.EndPrime
+                        ? val.EndPrime.ToString()
+                        : (val.StartPrime / uint.MaxValue).ToString();
+                    Console.WriteLine($"{LastPrimeGapTypeFix(val.GapType)},{val.GapSize},{val.StartPrime},{endPrime}");
+                }
+                else
+                {
+                    var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
+                    Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
+                }
             }
 
             /*
-odd-fix
+            odd-fix
 
-%6!=0 not repeatable
-6,12,18,24,30 already seen to max
-review.
-*/
+            %6!=0 not repeatable
+            6,12,18,24,30 already seen to max
+            review.
+            */
 
             foreach (var key in allRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
@@ -185,6 +211,17 @@ review.
                 ex = ex.InnerException;
             }
         }
+    }
+
+    private static string LastPrimeGapTypeFix(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+            return "NoType";
+
+        if (type == "LastPrime")
+            return "NumPrimes";
+
+        return type;
     }
 
     private static void ManageTasks(List<Task<(List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>)>> tasks,
