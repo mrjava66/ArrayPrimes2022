@@ -24,6 +24,8 @@ internal static class ProgramClass
 
             var folder = ConfigurationManager.AppSettings["Folder"];
             var fileMask = ConfigurationManager.AppSettings["FileMask"];
+            var allFileMask = ConfigurationManager.AppSettings["AllFileMask"] ?? "*.*";
+
             if (string.IsNullOrWhiteSpace(folder))
                 throw new Exception("Must define a folder");
             if (string.IsNullOrWhiteSpace(fileMask))
@@ -55,10 +57,59 @@ internal static class ProgramClass
                 Console.WriteLine(e.Message);
             }
 
-            var files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
+            var files = Directory.GetFiles(folder, allFileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
 
             decimal totalTime = 0;
 
+            foreach (var file in files)
+            {
+                var lastSlash = file.LastIndexOf('\\');
+                var file0 = file.Substring(lastSlash);
+                if (file0.StartsWith("\\GapPrimes.0."))
+                    continue;
+
+                if (file0.StartsWith("\\GapArray.0."))
+                    continue;
+
+                var firstDot = file0.IndexOf(".", StringComparison.Ordinal);
+                if (firstDot == -1)
+                    continue;
+                var secondDot = file0.IndexOf(".", firstDot + 1, StringComparison.Ordinal);
+                if (secondDot == -1)
+                    continue;
+                var numStr = file0.Substring(firstDot + 1, secondDot - (firstDot + 1));
+                var didNum = uint.TryParse(numStr, out var num);
+                if (!didNum)
+                    continue;
+                var shouldFile = $"{folder}\\{num / 1024 / 1024}\\{num / 1024}{file0}";
+
+                if (file != shouldFile)
+                {
+                    var dirMakePath = $"{folder}\\{num / 1024 / 1024}\\{num / 1024}";
+                    while (!Directory.Exists(dirMakePath))
+                        try
+                        {
+                            var createDirectory = Directory.CreateDirectory(dirMakePath);
+                            Console.WriteLine($"{createDirectory.FullName} made");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.Error.WriteLine(e);
+                        }
+
+                    try
+                    {
+                        Console.WriteLine($"move {file} {shouldFile}");
+                        File.Move(file, shouldFile, true);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
+                }
+            }
+
+            files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
             var tasks = new List<Task<(List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>)>>();
             foreach (var file in files)
                 try
@@ -84,11 +135,19 @@ internal static class ProgramClass
             ManageTasks(tasks, 0, ref totalTime);
 
             ulong lastStartPrime = 0;
-            foreach (var val in allLastPrimeRows.OrderBy(o => ulong.MaxValue - o.StartPrime))
+            ulong lastContinuousCheck = 0;
+            var overBlockGap = (ulong)uint.MaxValue + 4000;
+            foreach (var val in allLastPrimeRows.OrderBy(o => o.StartPrime))
             {
                 if (val.StartPrime == lastStartPrime)
                     continue;
+                if (val.StartPrime > lastStartPrime + overBlockGap && lastContinuousCheck == 0)
+                {
+                    lastContinuousCheck = lastStartPrime;
+                    Console.WriteLine($"LastContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}");
+                }
                 lastStartPrime = val.StartPrime;
+
                 if (_LastPrimeBlocks)
                 {
                     var endPrime = val.StartPrime != val.EndPrime
@@ -101,15 +160,8 @@ internal static class ProgramClass
                     var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
                     Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
                 }
+
             }
-
-            /*
-            odd-fix
-
-            %6!=0 not repeatable
-            6,12,18,24,30 already seen to max
-            review.
-            */
 
             foreach (var key in allRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
@@ -117,7 +169,8 @@ internal static class ProgramClass
                 if (didGet && val is not null)
                 {
                     var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
-                    Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
+                    Console.WriteLine(
+                        $"{FixGapType(val.GapType, lastContinuousCheck, val.StartPrime)},{val.GapSize},{val.StartPrime},{endPrime}");
                 }
             }
 
@@ -133,12 +186,12 @@ internal static class ProgramClass
                     while (didGetGsr && lastGapSize + spaceValue < val.GapSize)
                     {
                         lastGapSize += spaceValue;
-                        Console.WriteLine($"1st Rep,{val.Repeat},{lastGapSize},{0},{0}");
+                        Console.WriteLine($"No  Rep,{val.Repeat},{lastGapSize},{0},{0}");
                     }
 
                     var startPrime = val.EndPrime - (ulong)(val.Repeat * val.GapSize);
 
-                    Console.WriteLine($"1st Rep,{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
+                    Console.WriteLine($"{FixGapType("1st Rep", lastContinuousCheck, val.StartPrime)},{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
                 }
 
                 lastGapSize = val?.GapSize ?? 0;
@@ -194,7 +247,7 @@ internal static class ProgramClass
                     Console.WriteLine($"no gap,{lastGap},0,0");
                 }
 
-                Console.WriteLine("{0},{1},{2},{3}{4}", row.GapType, row.GapSize, row.StartPrime, row.EndPrime,
+                Console.WriteLine("{0},{1},{2},{3}{4}", FixGapType(row.GapType, lastContinuousCheck, row.StartPrime), row.GapSize, row.StartPrime, row.EndPrime,
                     canTail && row.Tail ? ",Tail" : "");
                 lastGap = row.GapSize;
             }
@@ -211,6 +264,13 @@ internal static class ProgramClass
                 ex = ex.InnerException;
             }
         }
+    }
+
+    private static string FixGapType(string? valueGapType, ulong lastContinuousCheck, ulong valueStartPrime)
+    {
+        if (lastContinuousCheck < valueStartPrime)
+            return (valueGapType ?? "").Replace("1st ", "Fnd ");
+        return (valueGapType ?? "").Contains("1st") ? (valueGapType ?? "") : "1st " + (valueGapType ?? "");
     }
 
     private static string LastPrimeGapTypeFix(string? type)
