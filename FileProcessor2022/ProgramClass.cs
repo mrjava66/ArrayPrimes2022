@@ -57,59 +57,9 @@ internal static class ProgramClass
                 Console.WriteLine(e.Message);
             }
 
-            var files = Directory.GetFiles(folder, allFileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
+            var files = GetFilesList(folder, allFileMask, so, fileMask);
 
             decimal totalTime = 0;
-
-            foreach (var file in files)
-            {
-                var lastSlash = file.LastIndexOf('\\');
-                var file0 = file.Substring(lastSlash);
-                if (file0.StartsWith("\\GapPrimes.0."))
-                    continue;
-
-                if (file0.StartsWith("\\GapArray.0."))
-                    continue;
-
-                var firstDot = file0.IndexOf(".", StringComparison.Ordinal);
-                if (firstDot == -1)
-                    continue;
-                var secondDot = file0.IndexOf(".", firstDot + 1, StringComparison.Ordinal);
-                if (secondDot == -1)
-                    continue;
-                var numStr = file0.Substring(firstDot + 1, secondDot - (firstDot + 1));
-                var didNum = uint.TryParse(numStr, out var num);
-                if (!didNum)
-                    continue;
-                var shouldFile = $"{folder}\\{num / 1024 / 1024}\\{num / 1024}{file0}";
-
-                if (file != shouldFile)
-                {
-                    var dirMakePath = $"{folder}\\{num / 1024 / 1024}\\{num / 1024}";
-                    while (!Directory.Exists(dirMakePath))
-                        try
-                        {
-                            var createDirectory = Directory.CreateDirectory(dirMakePath);
-                            Console.WriteLine($"{createDirectory.FullName} made");
-                        }
-                        catch (Exception e)
-                        {
-                            Console.Error.WriteLine(e);
-                        }
-
-                    try
-                    {
-                        Console.WriteLine($"move {file} {shouldFile}");
-                        File.Move(file, shouldFile, true);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                    }
-                }
-            }
-
-            files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
             var tasks = new List<Task<(List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>)>>();
             foreach (var file in files)
                 try
@@ -144,8 +94,10 @@ internal static class ProgramClass
                 if (val.StartPrime > lastStartPrime + overBlockGap && lastContinuousCheck == 0)
                 {
                     lastContinuousCheck = lastStartPrime;
-                    Console.WriteLine($"LastContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}");
+                    Console.WriteLine(
+                        $"LastContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}");
                 }
+
                 lastStartPrime = val.StartPrime;
 
                 if (_LastPrimeBlocks)
@@ -160,7 +112,6 @@ internal static class ProgramClass
                     var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
                     Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
                 }
-
             }
 
             foreach (var key in allRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
@@ -191,7 +142,8 @@ internal static class ProgramClass
 
                     var startPrime = val.EndPrime - (ulong)(val.Repeat * val.GapSize);
 
-                    Console.WriteLine($"{FixGapType("1st Rep", lastContinuousCheck, val.StartPrime)},{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
+                    Console.WriteLine(
+                        $"{FixGapType("1st Rep", lastContinuousCheck, val.StartPrime)},{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
                 }
 
                 lastGapSize = val?.GapSize ?? 0;
@@ -247,7 +199,8 @@ internal static class ProgramClass
                     Console.WriteLine($"no gap,{lastGap},0,0");
                 }
 
-                Console.WriteLine("{0},{1},{2},{3}{4}", FixGapType(row.GapType, lastContinuousCheck, row.StartPrime), row.GapSize, row.StartPrime, row.EndPrime,
+                Console.WriteLine("{0},{1},{2},{3}{4}", FixGapType(row.GapType, lastContinuousCheck, row.StartPrime),
+                    row.GapSize, row.StartPrime, row.EndPrime,
                     canTail && row.Tail ? ",Tail" : "");
                 lastGap = row.GapSize;
             }
@@ -266,11 +219,332 @@ internal static class ProgramClass
         }
     }
 
+    private static string[] GetFilesList(string folder, string allFileMask, SearchOption so, string fileMask)
+    {
+        var files = Directory.GetFiles(folder, allFileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
+
+        var didMove = false;
+        foreach (var file in files)
+        {
+            var lastSlash = file.LastIndexOf('\\');
+            var file0 = file.Substring(lastSlash);
+
+            var firstDot = file0.IndexOf(".", StringComparison.Ordinal);
+            if (firstDot == -1)
+                continue;
+            var secondDot = file0.IndexOf(".", firstDot + 1, StringComparison.Ordinal);
+            if (secondDot == -1)
+                continue;
+            var numStr = file0.Substring(firstDot + 1, secondDot - (firstDot + 1));
+            var didNum = uint.TryParse(numStr, out var num);
+            if (!didNum)
+                continue;
+            var shouldFile = $"{folder}\\{num / 1024 / 1024}\\{num / 1024}{file0}";
+
+            if (file != shouldFile)
+            {
+                var dirMakePath = $"{folder}\\{num / 1024 / 1024}\\{num / 1024}";
+                while (!Directory.Exists(dirMakePath))
+                    try
+                    {
+                        var createDirectory = Directory.CreateDirectory(dirMakePath);
+                        Console.WriteLine($"{createDirectory.FullName} made");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Error.WriteLine(e);
+                    }
+
+                try
+                {
+                    Console.WriteLine($"move {file} {shouldFile}");
+                    File.Move(file, shouldFile, true);
+                    didMove = true;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+            }
+        }
+
+        files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
+
+        didMove = false;
+        uint group = 0;
+        uint groupPos = 0;
+        var groupFiles = new List<string>();
+        foreach (var file in files)
+        {
+            var lastSlash = file.LastIndexOf('\\');
+            var file0 = file.Substring(lastSlash);
+
+            var firstDot = file0.IndexOf(".", StringComparison.Ordinal);
+            if (firstDot == -1)
+                continue;
+            var secondDot = file0.IndexOf(".", firstDot + 1, StringComparison.Ordinal);
+            if (secondDot == -1)
+                continue;
+            var numStr = file0.Substring(firstDot + 1, secondDot - (firstDot + 1));
+            var didNum = uint.TryParse(numStr, out var num);
+            if (!didNum)
+                continue;
+
+            var xGroup = num / 1024;
+            var xGroupPos = num - xGroup * 1024;
+
+            if (xGroup != group)
+            {
+                if (groupPos == 1023)
+                    if (groupFiles.Count > 1023)
+                    {
+                        //summarize
+                        var ls1 = groupFiles[0].LastIndexOf('\\');
+                        var sourceDirectoryName = groupFiles[0].Substring(0, ls1);
+
+                        var ls2 = sourceDirectoryName.LastIndexOf('\\');
+                        var target = groupFiles[0].Substring(ls2, ls1 - ls2);
+                        var destinationArchiveFileName = groupFiles[0].Substring(0, ls2) + target + ".zip";
+                        var summaryFileName = fileMask.Replace("*", $"{group * 1024}_{group * 1024 + groupPos}");
+                        var summaryFilePath = groupFiles[0].Substring(0, ls2) + "\\" + summaryFileName;
+
+                        if (!File.Exists(summaryFilePath))
+                            CreateSummaryFile(groupFiles, summaryFilePath);
+                        //Console.WriteLine($"Zip {sourceDirectoryName} {destinationArchiveFileName}");
+                        //ZipFile.CreateFromDirectory(sourceDirectoryName, destinationArchiveFileName, CompressionLevel.SmallestSize, false);
+                        //todo remove old
+                        //todo update AP to use summary file when counting previous work.
+                    }
+
+                //new group
+                group = xGroup;
+                groupPos = 0;
+                groupFiles.Clear();
+            }
+
+            if (xGroupPos == groupPos)
+            {
+                //good.
+                groupFiles.Add(file);
+            }
+            else if (xGroupPos == groupPos + 1)
+            {
+                //sill good.
+                groupPos = xGroupPos;
+                groupFiles.Add(file);
+            }
+            else
+            {
+                //missing file
+                group = xGroup;
+                groupPos = 0;
+                groupFiles.Clear();
+            }
+        }
+
+        if (didMove)
+            files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
+
+        files = TrimForSummaries(files);
+
+        return files;
+    }
+
+    private static string[] TrimForSummaries(string[] files)
+    {
+        var summaryDictionary = new Dictionary<uint, bool>();
+        foreach (var file in files)
+        {
+            if (!file.Contains("_"))
+                continue;
+
+            var lastSlash = file.LastIndexOf('\\');
+            var file0 = file.Substring(lastSlash);
+
+            var firstDot = file0.IndexOf(".", StringComparison.Ordinal);
+            if (firstDot == -1)
+                continue;
+            var secondDot = file0.IndexOf(".", firstDot + 1, StringComparison.Ordinal);
+            if (secondDot == -1)
+                continue;
+
+            var numStr = file0.Substring(firstDot + 1, secondDot - (firstDot + 1));
+
+            if (!numStr.Contains("_"))
+                continue;
+
+            var numSplit = numStr.Split("_");
+            var didLowNum = uint.TryParse(numSplit[0], out var lowNum);
+            if (!didLowNum)
+                continue;
+            var didHighNum = uint.TryParse(numSplit[1], out var highNum);
+            if (!didHighNum)
+                continue;
+            if (lowNum > highNum)
+                continue;
+            if (lowNum + 1023 != highNum)
+                continue;
+
+            for (var i = lowNum; i <= highNum; i++)
+                summaryDictionary.TryAdd(i, true);
+        }
+
+        var filesList = files.ToList();
+        var noFileList = new List<string>();
+        foreach (var file in filesList)
+        {
+            if (file.Contains("_"))
+                continue;
+
+            var lastSlash = file.LastIndexOf('\\');
+            var file0 = file.Substring(lastSlash);
+
+            var firstDot = file0.IndexOf(".", StringComparison.Ordinal);
+            if (firstDot == -1)
+                continue;
+            var secondDot = file0.IndexOf(".", firstDot + 1, StringComparison.Ordinal);
+            if (secondDot == -1)
+                continue;
+
+            var numStr = file0.Substring(firstDot + 1, secondDot - (firstDot + 1));
+            var didNum = uint.TryParse(numStr, out var num);
+            if (!didNum)
+                continue;
+
+            if (!summaryDictionary.ContainsKey(num))
+                continue;
+
+            noFileList.Add(file);
+        }
+
+        filesList = filesList.Except(noFileList).ToList();
+
+        return filesList.ToArray();
+    }
+
+    private static void CreateSummaryFile(List<string> groupFiles, string summaryFilePath)
+    {
+        try
+        {
+            var allFileRows = new List<string>();
+            var tasks = new List<Task<string[]?>>();
+            foreach (var groupFile in groupFiles)
+            {
+                var aGroupFile = groupFile;
+                var task = Task.Factory.StartNew(() => ReadAllLines(aGroupFile));
+                tasks.Add(task);
+            }
+
+            foreach (var task in tasks)
+            {
+                task.Wait();
+                //something went wrong.
+                if (task.Result == null)
+                    continue;
+                foreach (var row in task.Result) allFileRows.Add(row);
+            }
+
+            tasks = null;
+            allFileRows = allFileRows.OrderBy(s => s).ToList();
+
+            var outfileRows = new List<string>();
+            var lastRow = ",,,,";
+            var lastRowArray = lastRow.Split(",");
+            foreach (var thisRow in allFileRows)
+            {
+                var aThisRow = thisRow;
+                var thisRowArray = thisRow.Split(",");
+                if (thisRowArray.Length == 0)
+                    continue;
+                if (thisRowArray.Length != lastRowArray.Length)
+                {
+                    outfileRows.Add(lastRow);
+                }
+                else if (lastRowArray[0] == "LastPrime")
+                {
+                    outfileRows.Add(lastRow);
+                }
+                else if (OddFirst(lastRowArray))
+                {
+                    //keep all odd gaps.
+                    outfileRows.Add(lastRow);
+                }
+                else if (ThreeEqual(thisRowArray, lastRowArray))
+                {
+                    var didThis = ulong.TryParse(thisRowArray[4], out var thisVal);
+                    var didLast = ulong.TryParse(lastRowArray[4], out var lastVal);
+                    if (didThis && didLast && lastVal < thisVal)
+                    {
+                        thisRowArray = lastRowArray;
+                        aThisRow = lastRow;
+                    }
+                }
+                else
+                {
+                    outfileRows.Add(lastRow);
+                }
+
+                lastRow = aThisRow;
+                lastRowArray = thisRowArray;
+            }
+
+            outfileRows.Add(lastRow);
+
+            if (File.Exists(summaryFilePath)) File.Move(summaryFilePath, $"{summaryFilePath}.{DateTime.Now.Ticks}.old");
+
+            File.WriteAllLines(summaryFilePath, outfileRows);
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine(e);
+        }
+    }
+
+    private static bool OddFirst(string[] lastRowArray)
+    {
+        if (lastRowArray[0] == "1st Gap" && lastRowArray[2] == "Primes")
+        {
+            var didGap = uint.TryParse(lastRowArray[1], out var gap);
+            if (didGap && gap % 2 == 1) return true;
+        }
+
+        return false;
+    }
+
+    private static bool ThreeEqual(string[] thisRowArray, string[] lastRowArray)
+    {
+        if (thisRowArray.Length < 4)
+            return false;
+        if (lastRowArray.Length < 4)
+            return false;
+        if (thisRowArray[0] != lastRowArray[0])
+            return false;
+        if (thisRowArray[1] != lastRowArray[1])
+            return false;
+        if (thisRowArray[2] != lastRowArray[2])
+            return false;
+        return true;
+    }
+
+    private static string[]? ReadAllLines(string file)
+    {
+        try
+        {
+            return File.ReadAllLines(file);
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine(e);
+        }
+
+        return null;
+    }
+
     private static string FixGapType(string? valueGapType, ulong lastContinuousCheck, ulong valueStartPrime)
     {
         if (lastContinuousCheck < valueStartPrime)
             return (valueGapType ?? "").Replace("1st ", "Fnd ");
-        return (valueGapType ?? "").Contains("1st") ? (valueGapType ?? "") : "1st " + (valueGapType ?? "");
+        return (valueGapType ?? "").Contains("1st") ? valueGapType ?? "" : "1st " + (valueGapType ?? "");
     }
 
     private static string LastPrimeGapTypeFix(string? type)
@@ -304,13 +578,16 @@ internal static class ProgramClass
 
     private static decimal AppendOtherRows(List<GapRowFormat> gapRows, List<RowFormat> rows)
     {
-        uint oddGaps = 0;
+        var oddGapList = new List<ulong>();
+        //uint oddGaps = 0;
         foreach (var row in gapRows)
         {
             if (row.GapSize % 2 == 1)
                 if (row.StartPrime != 2)
                 {
-                    oddGaps++;
+                    if (!oddGapList.Contains(row.StartPrime))
+                        oddGapList.Add(row.StartPrime);
+                    //oddGaps++;
                     continue;
                 }
             // not interested in odds.(beginning and end gaps)
@@ -331,13 +608,18 @@ internal static class ProgramClass
         }
 
         decimal lastWhen = 0;
-        foreach (var row in rows)
+        ulong lastLastPrime = 0;
+        foreach (var row in rows.OrderBy(x => x.StartPrime).ThenBy(x => x.GapSize))
         {
             if (row.GapType == "LastPrime")
             {
+                lastWhen += row.When;
+                if (lastLastPrime == row.StartPrime)
+                    continue;
+                var oddGaps = (uint)oddGapList.Count(x => lastLastPrime < x && x <= row.StartPrime);
                 row.GapSize -= oddGaps;
-                lastWhen = row.When;
                 allLastPrimeRows.Add(row);
+                lastLastPrime = row.StartPrime;
                 continue;
             }
 
@@ -385,7 +667,7 @@ internal static class ProgramClass
             try
             {
                 var split = row.Split(',');
-                if (split.Length < 5)
+                if (split.Length < 6)
                     continue;
                 var gapType = split[0];
                 if (gapType == "1st Gap")
