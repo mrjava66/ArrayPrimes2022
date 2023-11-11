@@ -312,8 +312,7 @@ internal static class ProgramClass
                             CreateSummaryFile(groupFiles, summaryFilePath);
                         //Console.WriteLine($"Zip {sourceDirectoryName} {destinationArchiveFileName}");
                         //ZipFile.CreateFromDirectory(sourceDirectoryName, destinationArchiveFileName, CompressionLevel.SmallestSize, false);
-                        //todo remove old
-                        //todo update AP to use summary file when counting previous work.
+                        //?todo remove old
                     }
 
                 //new group
@@ -502,6 +501,9 @@ internal static class ProgramClass
 
     private static bool OddFirst(string[] lastRowArray)
     {
+        if (lastRowArray.Length < 3)
+            return false;
+
         if (lastRowArray[0] == "1st Gap" && lastRowArray[2] == "Primes")
         {
             var didGap = uint.TryParse(lastRowArray[1], out var gap);
@@ -530,7 +532,14 @@ internal static class ProgramClass
     {
         try
         {
-            return File.ReadAllLines(file);
+            //todo if line 4 is a 1st Gap and odd, remove it.  It makes prime counts wrong.
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < 10; i++)
+            {
+                if (OddFirst(lines[i].Split(',')))
+                    lines[i] = ",,,,";
+            }
+            return lines;
         }
         catch (Exception e)
         {
