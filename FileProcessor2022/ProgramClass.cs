@@ -6,12 +6,11 @@ internal static class ProgramClass
 {
     private const decimal SecondsPerDay = 3600 * 24;
 
-    private static readonly Dictionary<uint, GapRowFormat> allGapRows = new();
-    private static readonly Dictionary<(int, uint), RepRowFormat> allRepRows = new();
-    private static readonly Dictionary<(string?, uint), RowFormat> allRows = new();
-    private static readonly List<RowFormat> allLastPrimeRows = new();
-
-    public static bool _LastPrimeBlocks { get; set; }
+    private static readonly Dictionary<uint, GapRowFormat> AllGapRows = new();
+    private static readonly Dictionary<(int, uint), RepRowFormat> AllRepRows = new();
+    private static readonly Dictionary<(string?, uint), RowFormat> AllRows = new();
+    private static readonly List<RowFormat> AllLastPrimeRows = new();
+    public static bool LastPrimeBlocks { get; set; }
 
     public static void MainProgram()
     {
@@ -49,11 +48,11 @@ internal static class ProgramClass
                 var lpbString = ConfigurationManager.AppSettings["LastPrimeBlocks"]?.ToUpper() ?? "true";
                 var didLpb = bool.TryParse(lpbString, out var lpb);
                 if (didLpb)
-                    _LastPrimeBlocks = lpb;
+                    LastPrimeBlocks = lpb;
             }
             catch (Exception e)
             {
-                _LastPrimeBlocks = false;
+                LastPrimeBlocks = false;
                 Console.WriteLine(e.Message);
             }
 
@@ -87,7 +86,7 @@ internal static class ProgramClass
             ulong lastStartPrime = 0;
             ulong lastContinuousCheck = 0;
             var overBlockGap = (ulong)uint.MaxValue + 4000;
-            foreach (var val in allLastPrimeRows.OrderBy(o => o.StartPrime))
+            foreach (var val in AllLastPrimeRows.OrderBy(o => o.StartPrime))
             {
                 if (val.StartPrime == lastStartPrime)
                     continue;
@@ -100,7 +99,7 @@ internal static class ProgramClass
 
                 lastStartPrime = val.StartPrime;
 
-                if (_LastPrimeBlocks)
+                if (LastPrimeBlocks)
                 {
                     var endPrime = val.StartPrime != val.EndPrime
                         ? val.EndPrime.ToString()
@@ -114,9 +113,9 @@ internal static class ProgramClass
                 }
             }
 
-            foreach (var key in allRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
+            foreach (var key in AllRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
-                var didGet = allRows.TryGetValue(key, out var val);
+                var didGet = AllRows.TryGetValue(key, out var val);
                 if (didGet && val is not null)
                 {
                     var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
@@ -128,9 +127,9 @@ internal static class ProgramClass
             var gapSizeRepeat = new Dictionary<int, uint>
                 { { 2, 6 }, { 3, 6 }, { 4, 30 }, { 5, 30 }, { 6, 210 }, { 7, 210 }, { 8, 210 }, { 9, 210 } };
             uint lastGapSize = 0;
-            foreach (var keyTuple in allRepRows.Keys.OrderBy(num => num.Item1 * 2000 + num.Item2))
+            foreach (var keyTuple in AllRepRows.Keys.OrderBy(num => num.Item1 * 2000 + num.Item2))
             {
-                var didGet = allRepRows.TryGetValue(keyTuple, out var val);
+                var didGet = AllRepRows.TryGetValue(keyTuple, out var val);
                 if (didGet && val is not null)
                 {
                     var didGetGsr = gapSizeRepeat.TryGetValue(val.Repeat, out var spaceValue);
@@ -151,7 +150,7 @@ internal static class ProgramClass
 
             var firstRows = new List<GapRowFormat>();
 
-            foreach (var rowX in allGapRows)
+            foreach (var rowX in AllGapRows)
             {
                 var row = rowX.Value;
                 //if (row.GapSize % 2 == 1) continue; // not interested in odds.(beginning and end gaps)
@@ -600,18 +599,18 @@ internal static class ProgramClass
                 }
             // not interested in odds.(beginning and end gaps)
 
-            var didGet = allGapRows.TryGetValue(row.GapSize, out var cr);
+            var didGet = AllGapRows.TryGetValue(row.GapSize, out var cr);
             if (!didGet || cr is null)
             {
                 //we have not seen a gap of this size before, add it to the list.
-                allGapRows.Add(row.GapSize, row);
+                AllGapRows.Add(row.GapSize, row);
             }
             else if (cr.StartPrime > row.StartPrime)
             {
                 //we have seen a gap of this size before, but it was at a higher value.
                 //remove the old one, and put in the new one.
-                allGapRows.Remove(row.GapSize);
-                allGapRows.Add(row.GapSize, row);
+                AllGapRows.Remove(row.GapSize);
+                AllGapRows.Add(row.GapSize, row);
             }
         }
 
@@ -626,22 +625,22 @@ internal static class ProgramClass
                     continue;
                 var oddGaps = (uint)oddGapList.Count(x => lastLastPrime < x && x <= row.StartPrime);
                 row.GapSize -= oddGaps;
-                allLastPrimeRows.Add(row);
+                AllLastPrimeRows.Add(row);
                 lastLastPrime = row.StartPrime;
                 continue;
             }
 
             if (row.GapSize % 2 == 1)
                 continue; // not interested in odds.(beginning and end gaps)
-            var didGet = allRows.TryGetValue((row.GapType, row.GapSize), out var rep);
+            var didGet = AllRows.TryGetValue((row.GapType, row.GapSize), out var rep);
             if (!didGet || rep is null)
             {
-                allRows.Add((row.GapType, row.GapSize), row);
+                AllRows.Add((row.GapType, row.GapSize), row);
             }
             else if (rep.StartPrime > row.StartPrime)
             {
-                allRows.Remove((row.GapType, row.GapSize));
-                allRows.Add((row.GapType, row.GapSize), row);
+                AllRows.Remove((row.GapType, row.GapSize));
+                AllRows.Add((row.GapType, row.GapSize), row);
             }
         }
 
@@ -652,15 +651,15 @@ internal static class ProgramClass
     {
         foreach (var repRow in repRows)
         {
-            var didGet = allRepRows.TryGetValue((repRow.Repeat, repRow.GapSize), out var rep);
+            var didGet = AllRepRows.TryGetValue((repRow.Repeat, repRow.GapSize), out var rep);
             if (!didGet || rep is null)
             {
-                allRepRows.Add((repRow.Repeat, repRow.GapSize), repRow);
+                AllRepRows.Add((repRow.Repeat, repRow.GapSize), repRow);
             }
             else if (rep.StartPrime > repRow.StartPrime)
             {
-                allRepRows.Remove((repRow.Repeat, repRow.GapSize));
-                allRepRows.Add((repRow.Repeat, repRow.GapSize), repRow);
+                AllRepRows.Remove((repRow.Repeat, repRow.GapSize));
+                AllRepRows.Add((repRow.Repeat, repRow.GapSize), repRow);
             }
         }
     }
