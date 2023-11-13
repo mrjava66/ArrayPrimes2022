@@ -223,7 +223,6 @@ internal static class ProgramClass
     {
         var files = Directory.GetFiles(folder, allFileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
 
-        var didMove = false;
         foreach (var file in files)
         {
             var lastSlash = file.LastIndexOf('\\');
@@ -259,7 +258,6 @@ internal static class ProgramClass
                 {
                     Console.WriteLine($"move {file} {shouldFile}");
                     File.Move(file, shouldFile, true);
-                    didMove = true;
                 }
                 catch (Exception e)
                 {
@@ -270,7 +268,7 @@ internal static class ProgramClass
 
         files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
 
-        didMove = false;
+        var didMove = false;
         uint group = 0;
         uint groupPos = 0;
         var groupFiles = new List<string>();
@@ -304,6 +302,7 @@ internal static class ProgramClass
 
                         var ls2 = sourceDirectoryName.LastIndexOf('\\');
                         var target = groupFiles[0].Substring(ls2, ls1 - ls2);
+                        // ReSharper disable once UnusedVariable
                         var destinationArchiveFileName = groupFiles[0].Substring(0, ls2) + target + ".zip";
                         var summaryFileName = fileMask.Replace("*", $"{group * 1024}_{group * 1024 + groupPos}");
                         var summaryFilePath = groupFiles[0].Substring(0, ls2) + "\\" + summaryFileName;
@@ -443,6 +442,7 @@ internal static class ProgramClass
                 foreach (var row in task.Result) allFileRows.Add(row);
             }
 
+            // ReSharper disable once RedundantAssignment
             tasks = null;
             allFileRows = allFileRows.OrderBy(s => s).ToList();
 
@@ -532,7 +532,6 @@ internal static class ProgramClass
     {
         try
         {
-            //todo if line 4 is a 1st Gap and odd, remove it.  It makes prime counts wrong.
             var lines = File.ReadAllLines(file);
             for (int i = 0; i < 10; i++)
             {
