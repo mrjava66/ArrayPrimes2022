@@ -690,7 +690,9 @@ internal static class ProgramClass
                         StartPrime = ulong.TryParse(split[4], out var startPrime) ? startPrime : 0,
                         When = decimal.TryParse(split[5], out var when) ? when : 0
                     };
-                    gapRows.Add(rowFormat);
+                    //Don't count first Gap if odd Length in a non-summary file
+                    if (gapRows.Count > 0 || rowFormat.GapSize % 2 == 0 || file.Contains("_"))
+                        gapRows.Add(rowFormat);
                 }
                 else if (gapType == "1st Rep")
                 {
