@@ -295,12 +295,15 @@ internal static class ProgramClass
         }
     }
 
-    private static Dictionary<uint, uint> GetPreviousWork()
+    private static Dictionary<uint, bool> GetPreviousWork()
     {
-        var xd = new Dictionary<uint, uint> { { 0, 0 } };
+        var xd = new Dictionary<uint, bool> { { 0, true } };
 
         if (!_getPreviousWork)
+        {
+            Console.WriteLine($"Found Existing work.  Files={xd.Count}. Not looking.");
             return xd;
+        }
 
         //return xd;  // enable this to ignore previous work.
         if (string.IsNullOrWhiteSpace(_basePath))
@@ -318,8 +321,10 @@ internal static class ProgramClass
             var intStr = xx.Substring(sd + 1, td - (sd + 1));
 
             if (!uint.TryParse(intStr, out var intInt)) continue;
-            if (!xd.Keys.Contains(intInt)) xd.TryAdd(intInt, intInt);
+            if (!xd.Keys.Contains(intInt)) xd.TryAdd(intInt, true);
         }
+
+        Console.WriteLine($"Found Existing work.  Files={xd.Count}");
 
         return xd;
     }
@@ -348,15 +353,16 @@ internal static class ProgramClass
             var now = DateTime.UtcNow.ToString("u").Replace(" ", ".").Replace(":", ".");
             ConfigureSystem();
 
+            var start = DateTime.Now;
             var taskBuildAnvil = MakeRunningBuildAnvilProcess();
-
             var fullDivisorList = new uint[203280222];
             MakeBaseArrays(fullDivisorList, now);
+            Console.WriteLine($"Base Arrays {(DateTime.Now-start).TotalSeconds}");
             GC.Collect();
             taskBuildAnvil.Wait();
+            Console.WriteLine($"Anvil {(DateTime.Now - start).TotalSeconds}");
             // ReSharper disable once RedundantAssignment
             taskBuildAnvil = null;
-            //BuildAnvil();
             GC.Collect();
 
             //each block represents 128*2^32 values.  blocks are numbered from 0.
@@ -368,8 +374,6 @@ internal static class ProgramClass
 
             //build a list of previous work.
             var xd = GetPreviousWork();
-
-            Console.WriteLine($"Found Existing work.  Files={xd.Count}");
 
             QuickCheck(fullDivisorList, now, xd);
             var minBlock = (uint)(_minvalueNumber / (Two32 * blockAssignmentSize));
@@ -387,7 +391,7 @@ internal static class ProgramClass
                     var taskE = Task.Factory.StartNew(() =>
                         ProcessNumberBlocks(fullDivisorList, val, val + 1, now));
                     tasks.Add(taskE);
-                    xd.TryAdd(val, val);
+                    xd.TryAdd(val, true);
                 }
 
             for (var runBlock = firstBlock; runBlock < lastBlock; runBlock++)
@@ -408,6 +412,12 @@ internal static class ProgramClass
                     minvalue++;
                 }
 
+                while (minvalue < maxvalue)
+                {
+                    if (!xd.Keys.Contains(maxvalue)) break;
+                    maxvalue--;
+                }
+
                 if (minvalue == maxvalue) continue;
 
                 if (_blockOffset > 0)
@@ -425,7 +435,7 @@ internal static class ProgramClass
                 tasks.Add(taskE);
                 //ProcessNumberBlocks(fullDivisorList, minvalue, maxvalue, now);
                 for (var i = minvalue; i < maxvalue; i++)
-                    xd.TryAdd(i, i);
+                    xd.TryAdd(i, true);
             }
 
             //wait for all tasks to complete.
@@ -445,7 +455,7 @@ internal static class ProgramClass
         }
     }
 
-    private static void MaintainPreviousWork(ref Dictionary<uint, uint> xd, uint firstBlock, uint runBlock,
+    private static void MaintainPreviousWork(ref Dictionary<uint, bool> xd, uint firstBlock, uint runBlock,
         uint lastBlock, uint minBlock, uint blockAssignmentSize)
     {
         if (_getPreviousWorkTime <= DateTime.Now) 
@@ -479,6 +489,7 @@ internal static class ProgramClass
                 _blockOffset--;
             }
         }
+        Console.WriteLine($"Block Offset set to {_blockOffset}");
     }
 
     /// <summary>
@@ -970,7 +981,7 @@ internal static class ProgramClass
         }
     }
 
-    private static void QuickCheck(uint[] fdl, string now, IDictionary<uint, uint> xd)
+    private static void QuickCheck(uint[] fdl, string now, IDictionary<uint, bool> xd)
     {
         if (string.IsNullOrWhiteSpace(_quickCheck)) return;
 
@@ -991,7 +1002,7 @@ internal static class ProgramClass
                     continue;
             }
 
-            xd.TryAdd(quickCheckBlock, quickCheckBlock);
+            xd.TryAdd(quickCheckBlock, true);
 
             ManageTasks(tasks);
 
