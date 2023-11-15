@@ -301,7 +301,7 @@ internal static class ProgramClass
 
         if (!_getPreviousWork)
         {
-            Console.WriteLine($"Found Existing work.  Files={xd.Count}. Not looking.");
+            Console.WriteLine($"Found Existing work.  Files={xd.Count}. Not looking.{DateTime.Now}");
             return xd;
         }
 
@@ -324,7 +324,7 @@ internal static class ProgramClass
             if (!xd.Keys.Contains(intInt)) xd.TryAdd(intInt, true);
         }
 
-        Console.WriteLine($"Found Existing work.  Files={xd.Count}");
+        Console.WriteLine($"Found Existing work.  Files={xd.Count}.{DateTime.Now}");
 
         return xd;
     }
@@ -357,7 +357,7 @@ internal static class ProgramClass
             var taskBuildAnvil = MakeRunningBuildAnvilProcess();
             var fullDivisorList = new uint[203280222];
             MakeBaseArrays(fullDivisorList, now);
-            Console.WriteLine($"Base Arrays {(DateTime.Now-start).TotalSeconds}");
+            Console.WriteLine($"Base Arrays {(DateTime.Now - start).TotalSeconds}");
             GC.Collect();
             taskBuildAnvil.Wait();
             Console.WriteLine($"Anvil {(DateTime.Now - start).TotalSeconds}");
@@ -458,14 +458,14 @@ internal static class ProgramClass
     private static void MaintainPreviousWork(ref Dictionary<uint, bool> xd, uint firstBlock, uint runBlock,
         uint lastBlock, uint minBlock, uint blockAssignmentSize)
     {
-        if (_getPreviousWorkTime <= DateTime.Now) 
+        if (_getPreviousWorkTime > DateTime.Now)
             //not time to try
             return;
 
         _getPreviousWorkTime = DateTime.Now + GetPreviousWorkFrequency;
         xd = GetPreviousWork();
 
-        if (_blockOffsetConfig <= 0) 
+        if (_blockOffsetConfig <= 0)
             //no separator to maintain.
             return;
 
@@ -484,12 +484,10 @@ internal static class ProgramClass
             }
 
             if (xMin == xMax) continue;
-            if (_blockOffset > 0)
-            {
-                _blockOffset--;
-            }
+            if (_blockOffset > 0) _blockOffset--;
         }
-        Console.WriteLine($"Block Offset set to {_blockOffset}");
+
+        Console.WriteLine($"Block Offset set to {_blockOffset} with {runBlock}:{runBlock*128}"); //blockAssignmentSize
     }
 
     /// <summary>
