@@ -412,11 +412,11 @@ internal static class ProgramClass
                     minvalue++;
                 }
 
-                while (minvalue < maxvalue)
-                {
-                    if (!xd.Keys.Contains(maxvalue)) break;
-                    maxvalue--;
-                }
+                //while (minvalue < maxvalue)
+                //{
+                //    if (!xd.Keys.Contains(maxvalue-1)) break;
+                //    maxvalue--;
+                //}
 
                 if (minvalue == maxvalue) continue;
 

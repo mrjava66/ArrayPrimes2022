@@ -23,9 +23,19 @@ public partial class Form1 : Form
         ("788", "96949415903999"),
         ("804", "90874329411493"),
         ("806", "171231342420521"),
+        ("906", "218209405436543"),
+        ("916", "1189459969825483"),
+        ("924","1686994940955803"),
+        ("1132","1693182318746371"),
+        ("1184","43841547845541059"),
         ("1510", "6787988999657777797"),
         ("1526", "15570628755536096243"),
-        ("1530", "17678654157568189057")
+        ("1530", "17678654157568189057"),
+        ("1430", "4606937813294064947"),
+        ("450", "8560443932347"),
+        ("720", "113377199603617"),
+        ("738", "1109480633819771"),
+        ("840", "187891466722493"),
     };
 
     private int _dClickLocation = -1;
@@ -320,18 +330,25 @@ public partial class Form1 : Form
 
     private void textBox1_DoubleClick(object sender, EventArgs e)
     {
-        _dClickLocation++;
-        if (_dClickLocation > Locations.Count)
-            _dClickLocation = 0;
+        try
+        {
+            _dClickLocation++;
+            if (_dClickLocation >= Locations.Count)
+                _dClickLocation = 0;
 
-        // keep old value.
-        var didGet = Locations.Any(x => x.Item2 == textBox1.Text && x.Item1 == textBox2.Text);
-        if (!didGet)
-            Locations.Add((textBox2.Text, textBox1.Text));
+            // keep old value.
+            var didGet = Locations.Any(x => x.Item2 == textBox1.Text && x.Item1 == textBox2.Text);
+            if (!didGet)
+                Locations.Add((textBox2.Text, textBox1.Text));
 
-        var val = Locations[_dClickLocation];
-        textBox1.Text = val.Item2;
-        textBox2.Text = val.Item1;
+            var val = Locations[_dClickLocation];
+            textBox1.Text = val.Item2;
+            textBox2.Text = val.Item1;
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(exception.Message);
+        }
     }
 
     private void textBox1_TextChanged(object sender, EventArgs e)
