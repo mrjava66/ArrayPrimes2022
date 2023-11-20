@@ -7,6 +7,7 @@ internal class RowFormat
     public ulong EndPrime { get; set; }
     public ulong StartPrime { get; set; }
     public decimal When { get; set; }
+    public bool Tail { get; set; }
 }
 
 internal class RepRowFormat : RowFormat
@@ -18,5 +19,4 @@ internal class GapRowFormat : RowFormat
 {
     //public string? Primes { get; set; }
 
-    public bool Tail { get; set; }
 }

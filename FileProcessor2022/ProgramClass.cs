@@ -113,8 +113,16 @@ internal static class ProgramClass
                 }
             }
 
+            AllLastPrimeRows.Clear();
+            GC.Collect();
+
+            OutputSome(lastContinuousCheck, "DistLon", 1);
+            OutputSome(lastContinuousCheck, "Sum Lon", 3);
+
             foreach (var key in AllRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
+                if ((key.Item1 ?? "").Contains("DistLon") || (key.Item1 ?? "").Contains("Sum Lon") || (key.Item1 ?? "").Contains("Not Gap"))
+                    continue;
                 var didGet = AllRows.TryGetValue(key, out var val);
                 if (didGet && val is not null)
                 {
@@ -215,6 +223,45 @@ internal static class ProgramClass
                 Console.Error.WriteLine(ex);
                 ex = ex.InnerException;
             }
+        }
+    }
+
+    private static void OutputSome(ulong lastContinuousCheck, string type, uint threeSize)
+    {
+        var typeGroupList = AllRows.Where(kvp => (kvp.Key.Item1 ?? "").Contains(type)).Select(x => x.Value).ToList();
+        typeGroupList.Add(new RowFormat { GapType = type, GapSize = threeSize, EndPrime = 3, StartPrime = 3 });
+        typeGroupList = typeGroupList.OrderBy(r => r.StartPrime).ToList();
+        uint size = 0;
+        foreach (var row in typeGroupList)
+            if (row.GapSize > size)
+            {
+                size = row.GapSize;
+                row.GapType = $"Max {type}";
+            }
+
+        //calculate tails.
+        ulong max = 0;
+        foreach (var row in typeGroupList.OrderBy(o => o.GapSize))
+            if (max < row.StartPrime)
+            {
+                max = row.StartPrime;
+                row.Tail = true;
+            }
+
+        uint lastGapSize = 0;
+        var canTail = true;
+        foreach (var val in typeGroupList.OrderBy(r => r.GapSize))
+        {
+            while (lastGapSize + 2 < val.GapSize)
+            {
+                lastGapSize += 2;
+                Console.WriteLine($"No {type},{lastGapSize},0,0");
+                canTail = false;
+            }
+            lastGapSize = val.GapSize;
+            var tailStr = canTail && val.Tail ? ",Tail" : "";
+            Console.WriteLine(
+                $"{FixGapType(val.GapType, lastContinuousCheck, val.StartPrime)},{val.GapSize},{val.StartPrime}{tailStr}");
         }
     }
 
