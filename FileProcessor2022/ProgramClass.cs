@@ -101,10 +101,10 @@ internal static class ProgramClass
 
                 if (LastPrimeBlocks)
                 {
-                    var endPrime = val.StartPrime != val.EndPrime
+                    var block = val.StartPrime != val.EndPrime
                         ? val.EndPrime.ToString()
                         : (val.StartPrime / uint.MaxValue).ToString();
-                    Console.WriteLine($"{LastPrimeGapTypeFix(val.GapType)},{val.GapSize},{val.StartPrime},{endPrime}");
+                    Console.WriteLine($"{block},{LastPrimeGapTypeFix(val.GapType)},{val.GapSize},{val.StartPrime}");
                 }
                 else
                 {
@@ -535,9 +535,11 @@ internal static class ProgramClass
 
             outfileRows.Add(lastRow);
 
-            if (File.Exists(summaryFilePath)) File.Move(summaryFilePath, $"{summaryFilePath}.{DateTime.Now.Ticks}.old");
+            if (File.Exists(summaryFilePath)) 
+                File.Move(summaryFilePath, $"{summaryFilePath}.{DateTime.Now.Ticks}.old");
 
             File.WriteAllLines(summaryFilePath, outfileRows);
+            Console.WriteLine($"Made {summaryFilePath}");
         }
         catch (Exception e)
         {
