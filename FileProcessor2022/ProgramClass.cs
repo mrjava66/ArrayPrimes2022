@@ -85,6 +85,7 @@ internal static class ProgramClass
 
             ulong lastStartPrime = 0;
             ulong lastContinuousCheck = 0;
+            ulong blockNumberFix = uint.MaxValue / 2;
             var overBlockGap = (ulong)uint.MaxValue + 4000;
             foreach (var val in AllLastPrimeRows.OrderBy(o => o.StartPrime))
             {
@@ -101,9 +102,7 @@ internal static class ProgramClass
 
                 if (LastPrimeBlocks)
                 {
-                    var block = val.StartPrime != val.EndPrime
-                        ? val.EndPrime.ToString()
-                        : (val.StartPrime / uint.MaxValue).ToString();
+                    var block = ((val.StartPrime - blockNumberFix) / uint.MaxValue).ToString();
                     Console.WriteLine($"{block},{LastPrimeGapTypeFix(val.GapType)},{val.GapSize},{val.StartPrime}");
                 }
                 else
@@ -535,7 +534,7 @@ internal static class ProgramClass
 
             outfileRows.Add(lastRow);
 
-            if (File.Exists(summaryFilePath)) 
+            if (File.Exists(summaryFilePath))
                 File.Move(summaryFilePath, $"{summaryFilePath}.{DateTime.Now.Ticks}.old");
 
             File.WriteAllLines(summaryFilePath, outfileRows);
