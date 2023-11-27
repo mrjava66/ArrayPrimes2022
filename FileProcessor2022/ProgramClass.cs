@@ -9,7 +9,7 @@ internal static class ProgramClass
     private static readonly Dictionary<uint, GapRowFormat> AllGapRows = new();
     private static readonly Dictionary<(int, uint), RepRowFormat> AllRepRows = new();
     private static readonly Dictionary<(string?, uint), RowFormat> AllRows = new();
-    private static readonly List<RowFormat> AllLastPrimeRows = new();
+    private static List<RowFormat> AllLastPrimeRows = new();
     public static bool LastPrimeBlocks { get; set; }
 
     public static void MainProgram()
@@ -87,7 +87,8 @@ internal static class ProgramClass
             ulong lastContinuousCheck = 0;
             ulong blockNumberFix = uint.MaxValue / 2;
             var overBlockGap = (ulong)uint.MaxValue + 4000;
-            foreach (var val in AllLastPrimeRows.OrderBy(o => o.StartPrime))
+            AllLastPrimeRows = AllLastPrimeRows.OrderBy(o => o.StartPrime).ToList();
+            foreach (var val in AllLastPrimeRows)
             {
                 if (val.StartPrime == lastStartPrime)
                     continue;
@@ -109,6 +110,30 @@ internal static class ProgramClass
                 {
                     var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
                     Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
+                }
+            }
+
+            var level = 0;
+            var levelEnough = 1;
+            ulong sum = 0;
+            ulong lastBlock = 0;
+            var bits = 33;
+            foreach (var val in AllLastPrimeRows.Skip(1))
+            {
+                var block = ((val.StartPrime - blockNumberFix) / uint.MaxValue);
+                if (block > lastBlock + 1)
+                    break;
+                lastBlock = block;
+
+                sum += val.GapSize;
+                level++;
+                if (level == levelEnough)
+                {
+                    Console.WriteLine($"{bits},{sum},{level}");
+                    bits++;
+                    sum = 0;
+                    level = 0;
+                    levelEnough *= 2;
                 }
             }
 
