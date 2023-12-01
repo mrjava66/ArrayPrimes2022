@@ -123,25 +123,26 @@ public class GapReport
         gapsFile.Write(gaps.ToString());
 
         if (ProgramClass.BigArray)
-            MakeGrid(gapsFile);
+            MakeGrid(gapsFile, _gapGrid, true);
 
         gapsFile.Flush();
     }
 
-    private void MakeGrid(TextWriter gapsFile)
+    public static void MakeGrid(TextWriter gapsFile, int[,] gridArray, bool doubleTop)
     {
         var maxJ = 0;
         var maxK = 0;
-        for (var j = 0; j < _gapGrid.GetLength(0); j++)
-        for (var k = 0; k < _gapGrid.GetLength(1); k++)
-            if (_gapGrid[j, k] > 0)
+        for (var j = 0; j < gridArray.GetLength(0); j++)
+        for (var k = 0; k < gridArray.GetLength(1); k++)
+            if (gridArray[j, k] > 0)
             {
                 if (j > maxJ) maxJ = j;
                 if (k > maxK) maxK = k;
             }
 
         var grid = new StringBuilder("**** ");
-        for (var k = 0; k <= maxK; k++) grid.Append($"{(2 * k).ToString().PadLeft(7, ' ')} ");
+        var mul = doubleTop ? 2 : 1;
+        for (var k = 0; k <= maxK; k++) grid.Append($"{(mul * k).ToString().PadLeft(7, ' ')} ");
 
         grid.Append(Environment.NewLine);
 
@@ -149,7 +150,7 @@ public class GapReport
         {
             grid.Append($"{(2 * j).ToString().PadLeft(4, ' ')} ");
 
-            for (var k = 0; k <= maxK; k++) grid.Append($"{_gapGrid[j, k].ToString().PadLeft(7, ' ')} ");
+            for (var k = 0; k <= maxK; k++) grid.Append($"{gridArray[j, k].ToString().PadLeft(7, ' ')} ");
             grid.Append(Environment.NewLine);
         }
 

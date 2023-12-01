@@ -455,6 +455,46 @@ internal static class ProgramClass
         }
     }
 
+    private static void Gap0Special(uint[] fullDivisorList, TextWriter file)
+    {
+        var gapBitArray = new int[338, 35];
+        var gapArray = new int[338];
+        var bits = 0;
+        ulong bitsVal = 1;
+        // ReSharper disable once UselessBinaryOperation
+        var bitsNextVal = 2 * bitsVal;
+        ulong oldP = 2;
+        foreach (var p in fullDivisorList)
+        {
+            if (p == 0)
+                continue;
+            var gap = p - oldP;
+            if (gap > 1)
+                gapArray[gap / 2]++;
+            while (p >= bitsVal)
+            {
+                PutUpGapArray(gapArray, gapBitArray, bits);
+                bits++;
+                bitsVal = bitsNextVal;
+                bitsNextVal = 2 * bitsVal;
+            }
+
+            oldP = p;
+        }
+
+        PutUpGapArray(gapArray, gapBitArray, bits);
+        GapReport.MakeGrid(file, gapBitArray, false);
+    }
+
+    private static void PutUpGapArray(int[] gapArray, int[,] gapBitArray, int bits)
+    {
+        for (var j = 0; j < gapArray.Length; j++)
+        {
+            gapBitArray[j, bits] = gapArray[j];
+            gapArray[j] = 0;
+        }
+    }
+
     private static void MaintainPreviousWork(ref Dictionary<uint, bool> xd, uint firstBlock, uint runBlock,
         uint lastBlock, uint minBlock, uint blockAssignmentSize)
     {
@@ -487,7 +527,7 @@ internal static class ProgramClass
             if (_blockOffset > 0) _blockOffset--;
         }
 
-        Console.WriteLine($"Block Offset set to {_blockOffset} with {runBlock}:{runBlock*128}"); //blockAssignmentSize
+        Console.WriteLine($"Block Offset set to {_blockOffset} with {runBlock}:{runBlock * 128}"); //blockAssignmentSize
     }
 
     /// <summary>
@@ -582,6 +622,7 @@ internal static class ProgramClass
         //gr.WriteFlush(gapFile);
 
         var gapsFile = new StreamWriter(_basePath + "0\\0\\GapArray.0." + now + ".log", false);
+        //Gap0Special(fdl, gapsFile);
         gr.ReportGaps(gapsFile);
     }
 

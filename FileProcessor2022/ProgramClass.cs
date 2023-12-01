@@ -11,6 +11,7 @@ internal static class ProgramClass
     private static readonly Dictionary<(string?, uint), RowFormat> AllRows = new();
     private static List<RowFormat> AllLastPrimeRows = new();
     public static bool LastPrimeBlocks { get; set; }
+    public static bool TwinTotals { get; set; }
 
     public static void MainProgram()
     {
@@ -53,6 +54,19 @@ internal static class ProgramClass
             catch (Exception e)
             {
                 LastPrimeBlocks = false;
+                Console.WriteLine(e.Message);
+            }
+
+            try
+            {
+                var lpbString = ConfigurationManager.AppSettings["TwinTotals"]?.ToUpper() ?? "true";
+                var didLpb = bool.TryParse(lpbString, out var lpb);
+                if (didLpb)
+                    TwinTotals = lpb;
+            }
+            catch (Exception e)
+            {
+                TwinTotals = false;
                 Console.WriteLine(e.Message);
             }
 
@@ -116,20 +130,71 @@ internal static class ProgramClass
             var level = 0;
             var levelEnough = 1;
             ulong sum = 0;
+            ulong twinSum = 0;
             ulong lastBlock = 0;
             var bits = 33;
             foreach (var val in AllLastPrimeRows.Skip(1))
             {
-                var block = ((val.StartPrime - blockNumberFix) / uint.MaxValue);
+                var block = (val.StartPrime - blockNumberFix) / uint.MaxValue;
                 if (block > lastBlock + 1)
                     break;
                 lastBlock = block;
 
                 sum += val.GapSize;
+                if (TwinTotals)
+                {
+                    var fileSearch = $"{folder}\\{block / 1024 / 1024}\\{block / 1024}";
+                    var fileSearchMask = $"GapArray.{block}.*.log";
+                    var aFile = Directory.GetFiles(fileSearch, fileSearchMask, SearchOption.TopDirectoryOnly)
+                        .MaxBy(x => x);
+                    if (aFile == null)
+                    {
+                        TwinTotals = false;
+                    }
+                    else
+                    {
+                        var lines = ReadAllLines(aFile);
+                        if (lines == null)
+                        {
+                            TwinTotals = false;
+                        }
+                        else
+                        {
+                            var line = lines.FirstOrDefault(l => l.StartsWith("Gap,2,Found,"));
+                            if (line == null)
+                            {
+                                TwinTotals = false;
+                            }
+                            else
+                            {
+                                var lineParts = line.Split(',');
+                                if (lineParts.Length < 4)
+                                {
+                                    TwinTotals = false;
+                                }
+                                else
+                                {
+                                    var didNum = ulong.TryParse(lineParts[3], out var num);
+                                    if (!didNum)
+                                        TwinTotals = false;
+                                    else
+                                        twinSum += num;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 level++;
                 if (level == levelEnough)
                 {
-                    Console.WriteLine($"{bits},{sum},{level}");
+                    if (TwinTotals)
+                    {
+                        Console.WriteLine($"Twin,{bits},{twinSum},{level}");
+                        twinSum = 0;
+                    }
+
+                    Console.WriteLine($"Total,{bits},{sum},{level}");
                     bits++;
                     sum = 0;
                     level = 0;
@@ -145,7 +210,8 @@ internal static class ProgramClass
 
             foreach (var key in AllRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
-                if ((key.Item1 ?? "").Contains("DistLon") || (key.Item1 ?? "").Contains("Sum Lon") || (key.Item1 ?? "").Contains("Not Gap"))
+                if ((key.Item1 ?? "").Contains("DistLon") || (key.Item1 ?? "").Contains("Sum Lon") ||
+                    (key.Item1 ?? "").Contains("Not Gap"))
                     continue;
                 var didGet = AllRows.TryGetValue(key, out var val);
                 if (didGet && val is not null)
@@ -282,6 +348,7 @@ internal static class ProgramClass
                 Console.WriteLine($"No {type},{lastGapSize},0,0");
                 canTail = false;
             }
+
             lastGapSize = val.GapSize;
             var tailStr = canTail && val.Tail ? ",Tail" : "";
             Console.WriteLine(
@@ -605,11 +672,9 @@ internal static class ProgramClass
         try
         {
             var lines = File.ReadAllLines(file);
-            for (int i = 0; i < 10; i++)
-            {
+            for (var i = 0; i < 10; i++)
                 if (OddFirst(lines[i].Split(',')))
                     lines[i] = ",,,,";
-            }
             return lines;
         }
         catch (Exception e)
