@@ -11,18 +11,16 @@ internal static class ProgramClass
 
     private static string _quickCheck = string.Empty; // use values in the config to check a specific range
 
-    private static bool
-        _runAllBlocksInOrder =
-            true; // run the entire number line in order, instead of the places where the big gaps are.
+    // run the entire number line in order, instead of the places where the big gaps are.
+    private static bool _runAllBlocksInOrder = true;
 
     private static bool _getPreviousWork; // retrieve previous work and not rerun old blocks.
     private static bool _allowQuickCheckBailout = true; // quick check does not rerun old blocks.
     private static bool _reverse; // run the number line in reverse down from 2^64
     private static string _basePath = ""; // where the files are.
 
-    private static DateTime
-        _startTimeSpacer = DateTime.Now; // limits the starting of tasks to one new task per 1.2 seconds
-
+    // limits the starting of tasks to one new task per 1.2 seconds
+    private static DateTime _startTimeSpacer = DateTime.Now;
     private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
 
     /// <summary>
@@ -33,11 +31,10 @@ internal static class ProgramClass
     private static readonly List<ulong> AnvilSizes = new();
     private static readonly uint AnvilFillPosition = 20;
 
-    /// <summary>
-    ///     The minimum value to check.
-    /// </summary>
+    //     The minimum value to check.
     private static ulong _minvalueNumber;
 
+    //helps separate computers work together
     private static ulong _blockOffsetConfig;
     private static ulong _blockOffset;
 
@@ -97,8 +94,8 @@ internal static class ProgramClass
         28322808, 30837039, 31821539, 31931132, 32157284, 33399147
     };
 
-    private static readonly TimeSpan GetPreviousWorkFrequency = new(1, 0, 0);
-    private static DateTime _getPreviousWorkTime = DateTime.Now + GetPreviousWorkFrequency;
+    private static readonly TimeSpan GetPreviousWorkCadence = new(1, 0, 0);
+    private static DateTime _getPreviousWorkTime = DateTime.Now + GetPreviousWorkCadence;
 
     static ProgramClass()
     {
@@ -480,6 +477,11 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// outputs an array of counts of all gaps by bits of lower number.
+    /// </summary>
+    /// <param name="fullDivisorList"></param>
+    /// <param name="file"></param>
     private static void Gap0Special(uint[] fullDivisorList, TextWriter file)
     {
         var gapBitArray = new int[338, 35];
@@ -520,6 +522,17 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// updates previous work dictionary 'xd' to by synced with the current files in the system
+    /// at a cadence (spacing) of GetPreviousWorkCadence.  Then, if needed, recalculates the
+    /// _blockOffset to keep this instance's work separated from other instances.
+    /// </summary>
+    /// <param name="xd"></param>
+    /// <param name="firstBlock"></param>
+    /// <param name="runBlock"></param>
+    /// <param name="lastBlock"></param>
+    /// <param name="minBlock"></param>
+    /// <param name="blockAssignmentSize"></param>
     private static void MaintainPreviousWork(ref Dictionary<uint, bool> xd, uint firstBlock, uint runBlock,
         uint lastBlock, uint minBlock, uint blockAssignmentSize)
     {
@@ -527,7 +540,7 @@ internal static class ProgramClass
             //not time to try
             return;
 
-        _getPreviousWorkTime = DateTime.Now + GetPreviousWorkFrequency;
+        _getPreviousWorkTime = DateTime.Now + GetPreviousWorkCadence;
         xd = GetPreviousWork();
 
         if (_blockOffsetConfig <= 0)
@@ -635,9 +648,9 @@ internal static class ProgramClass
                     gr.ReportGap(prime);
 
                     //outfile.WriteLine(prime);
+                    // don't need to sieve values greater than top.
                     if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                            prime); // don't need to sieve values greater than top.
+                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
                 }
             }
 
@@ -670,12 +683,9 @@ internal static class ProgramClass
             {
                 Console.Error.WriteLine(e);
             }
-
         return taskBuildAnvil;
     }
 
-    //private static readonly Random NotSoRand = new Random();
-    //private static int _spot = 1;
     private static void ManageTasks(List<Task> tasks)
     {
         while (true)
@@ -720,7 +730,7 @@ internal static class ProgramClass
         }
     }
 
-    // the main way I improve this code is to call it less.  (4B)*(~1e8) right now.
+    // the main way I could improve this code is to call it less.  (4B)*(~1e8) right now.
     private static uint PopulateDivisor(uint[] fdl, uint[] offsets, ulong loopMinCheckedValue,
         ulong divisorsFillPosition)
     {
@@ -792,8 +802,6 @@ internal static class ProgramClass
             var offsetByte = o / 8;
             var offsetBit = (int)o % 8;
 
-            #region div3
-
             //alternate moving p and 2p bits down the array to skip over divisible by 3 bits.
             var primeByteOn = primeByte + primeByte;
             var primeBitOn = primeBit + primeBit;
@@ -819,8 +827,6 @@ internal static class ProgramClass
 
             var onOff = (2 * p + markLoc) % 3 == 0;
 
-            #endregion div3
-
             //this is the main loop, this get's all the action.  ~2^32*(0.5*2^32/log(2^32)) entries and ( 2^32*(0.5*(2^32)/log(2^32)) )*( ((2^32)/log(2^32))*(1/2)*(1/3) ) cycles.
             while (offsetByte < Two28)
             {
@@ -841,8 +847,6 @@ internal static class ProgramClass
                     if ((bytes0[offsetByte] & bib) == 0) bytes0[offsetByte] |= bib;
                 }
 
-                #region div3b
-
                 if (onOff)
                 {
                     offsetByte += primeByteOn;
@@ -861,8 +865,6 @@ internal static class ProgramClass
                 }
 
                 onOff = !onOff;
-
-                #endregion div3b
             }
 
             /*
