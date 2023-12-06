@@ -9,10 +9,6 @@ internal static class ProgramClass
     private const ulong Two30 = Two31 / 2;
     private const ulong Two28 = Two30 / 4;
 
-    private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
-    private const ulong AnvilSize2 = 29 * 31 * 37 * 41 * 43;
-    private const ulong FullAnvilSize = AnvilSize * (8 + 1) + Two28;
-
     private static string _quickCheck = string.Empty; // use values in the config to check a specific range
 
     private static bool
@@ -33,7 +29,9 @@ internal static class ProgramClass
     ///     the array that holds all the possible arrangements of the first 8 divisors that we will need.
     ///     future work will allow this to cover the next 5.
     /// </summary>
-    private static readonly byte[] Anvil;
+    private static readonly List<byte[]> Anvils = new();
+    private static readonly List<ulong> AnvilSizes = new();
+    private static readonly uint AnvilFillPosition = 20;
 
     /// <summary>
     ///     The minimum value to check.
@@ -104,7 +102,6 @@ internal static class ProgramClass
 
     static ProgramClass()
     {
-        Anvil = new byte[FullAnvilSize];
     }
 
     public static bool BigArray { get; private set; } //controls if the two-dimensional gap array is made and displayed.
@@ -115,8 +112,26 @@ internal static class ProgramClass
     private static void BuildAnvil()
     {
         //build the full list
-        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23 };
-        BuildAnvil0(dl);
+        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73 };
+        var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 1, 7));
+        var taskBuildAnvil1 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 8, 12));
+        var taskBuildAnvil2 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 13, 16));
+        var taskBuildAnvil3 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 17, 20));
+
+        taskBuildAnvil0.Wait();
+        taskBuildAnvil1.Wait();
+        taskBuildAnvil2.Wait();
+        taskBuildAnvil3.Wait();
+
+        Anvils.Add(taskBuildAnvil0.Result.Item1);
+        Anvils.Add(taskBuildAnvil1.Result.Item1);
+        Anvils.Add(taskBuildAnvil2.Result.Item1);
+        Anvils.Add(taskBuildAnvil3.Result.Item1);
+
+        AnvilSizes.Add(taskBuildAnvil0.Result.Item2);
+        AnvilSizes.Add(taskBuildAnvil1.Result.Item2);
+        AnvilSizes.Add(taskBuildAnvil2.Result.Item2);
+        AnvilSizes.Add(taskBuildAnvil3.Result.Item2);
     }
 
     /*
@@ -190,9 +205,17 @@ internal static class ProgramClass
     }
     */
 
-    private static void BuildAnvil0(int[] dl)
+    private static (byte[], ulong) BuildAnAnvil(int[] dl, int start, int end)
     {
-        for (var divisorPosition = 1; divisorPosition < dl.Length; divisorPosition++)
+        ulong divisorSize = 1;
+        for (var i = start; i <= end; i++)
+            divisorSize *= (ulong)dl[i];
+
+        var fullSize = divisorSize * (8 + 1);
+        fullSize += Two28;
+        var anvil = new byte[fullSize];
+
+        for (var divisorPosition = start; divisorPosition <= end; divisorPosition++)
         {
             var p = dl[divisorPosition];
             var primeByte = (ulong)p / 8;
@@ -202,12 +225,12 @@ internal static class ProgramClass
             var offsetByte = (ulong)((p - 1) / 2 / 8);
             var offsetBit = (p - 1) / 2 % 8;
 
-            while (offsetByte < FullAnvilSize)
+            while (offsetByte < fullSize)
             {
                 var bib = (byte)(1 << offsetBit);
 
-                if ((Anvil[offsetByte] & bib) == 0)
-                    Anvil[offsetByte] |= bib;
+                if ((anvil[offsetByte] & bib) == 0)
+                    anvil[offsetByte] |= bib;
 
                 offsetByte += primeByte;
                 offsetBit += primeBit;
@@ -216,6 +239,8 @@ internal static class ProgramClass
                 offsetByte++;
             }
         }
+
+        return (anvil, divisorSize);
     }
 
     private static void ConfigureSystem()
@@ -309,8 +334,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-            where f.EndsWith("log") && f.Contains("\\GapArray.")
-            select f;
+                where f.EndsWith("log") && f.Contains("\\GapArray.")
+                select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -597,24 +622,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
-        {
-            if (arrays[a][l] == 255) continue;
-            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
-                if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (arrays[a][l] == 255) continue;
+                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+                {
+                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                fdl[++countPrimeNumber] = (uint)prime;
+                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                    fdl[++countPrimeNumber] = (uint)prime;
 
-                gr.ReportGap(prime);
+                    gr.ReportGap(prime);
 
-                //outfile.WriteLine(prime);
-                if (prime < sieveTop)
-                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
-                        prime); // don't need to sieve values greater than top.
+                    //outfile.WriteLine(prime);
+                    if (prime < sieveTop)
+                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize,
+                            prime); // don't need to sieve values greater than top.
+                }
             }
-        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "0\\0\\GapPrimes.0." + now + ".log", false);
@@ -924,29 +949,33 @@ internal static class ProgramClass
 
             //// markup the array. (use the divisor array, update the divisor array)
             var bytes00 = new byte[Two28];
-            //var offsetsAnvil = new uint[7];
 
-            //the anvil process does not maintain these values, they need to be recalculated every loop.
-            //for (ulong i = 1; i < 7; i++) PopulateDivisor(fdl, offsetsAnvil, loopMinCheckedValue, i);
-
-            //var offset = GetAnvilPosition(offsetsAnvil);
-            //const ulong modX = 3 * 5 * 7 * 11 * 13 * 17;
-            var notOffset = loopMinCheckedValue / 2 % AnvilSize;
+            var notOffset = loopMinCheckedValue / 2 % AnvilSizes[0];
             while (notOffset % 8 != 0)
-                notOffset += AnvilSize;
+                notOffset += AnvilSizes[0];
             notOffset /= 8;
-            //Console.WriteLine($"{offset}:{notOffset}:{modX}");
-            //Buffer.BlockCopy(Anvil, offset, bytes00, 0, (int)Two28);
-            //var bytes000 = new byte[Two28];
-            Buffer.BlockCopy(Anvil, (int)notOffset, bytes00, 0, (int)Two28);
-            //var cmp=ArrayCompare(bytes00, bytes000);
-            //bytes000 = null;
-            //GC.Collect();
-            //Console.WriteLine($"compare={cmp}");
+
+            Buffer.BlockCopy(Anvils[0], (int)notOffset, bytes00, 0, (int)Two28);
+
             grl.LoudReportGap("AfterBlockCopy"); // log how long it takes to put in the anvil.
 
-            const ulong divisorPosition = 9;
-            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes00);
+            byte[][] bytesMores = new byte[4][];
+            for (var i = 1; i <= 3; i++)
+            {
+                var bytesMore = new byte[Two28];
+                var notOffsetMore = loopMinCheckedValue / 2 % AnvilSizes[i];
+                while (notOffsetMore % 8 != 0)
+                    notOffsetMore += AnvilSizes[i];
+                notOffsetMore /= 8;
+                Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
+                bytesMores[i] = bytesMore;
+            }
+            BlendArrays(bytes00, bytesMores);
+            GC.Collect();
+
+            grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
+
+            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, AnvilFillPosition, bytes00);
             grl.LoudReportGap("AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;
@@ -1017,6 +1046,24 @@ internal static class ProgramClass
             }
 
             gapReportCarryState = grl.State;
+        }
+    }
+
+    private static void BlendArrays(byte[] bytes00, byte[][] bytesMore)
+    {
+        for (var i = 0; i < bytes00.Length; i++)
+        {
+            var b = bytes00[i];
+            b |= bytesMore[1][i];
+            b |= bytesMore[2][i];
+            b |= bytesMore[3][i];
+            if ((b & bytes00[i]) != 0)
+                bytes00[i] = b;
+            /*
+            if (bytesMore[i] == 0) continue;
+            if ((bytes00[i] | bytesMore[i]) != bytes00[i])
+                bytes00[i] |= bytesMore[i];
+            */
         }
     }
 
