@@ -14,14 +14,15 @@ internal static class ProgramClass
     // run the entire number line in order, instead of the places where the big gaps are.
     private static bool _runAllBlocksInOrder = true;
 
+    private static bool _lessRamMemory; // make-use just the primary anvil.
     private static bool _getPreviousWork; // retrieve previous work and not rerun old blocks.
     private static bool _allowQuickCheckBailout = true; // quick check does not rerun old blocks.
     private static bool _reverse; // run the number line in reverse down from 2^64
     private static string _basePath = ""; // where the files are.
 
-    // limits the starting of tasks to one new task per 1.2 seconds
+    // limits the starting of tasks to one new task per 3.6 seconds
     private static DateTime _startTimeSpacer = DateTime.Now;
-    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
+    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(3600);
 
     /// <summary>
     ///     the array that holds all the possible arrangements of the first 8 divisors that we will need.
@@ -29,7 +30,7 @@ internal static class ProgramClass
     /// </summary>
     private static readonly List<byte[]> Anvils = new();
     private static readonly List<ulong> AnvilSizes = new();
-    private static readonly uint AnvilFillPosition = 20;
+    private static uint _anvilDivisorPosition = 20;
 
     //     The minimum value to check.
     private static ulong _minvalueNumber;
@@ -110,25 +111,29 @@ internal static class ProgramClass
     {
         //build the full list
         var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73 };
+
         var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 1, 7));
+        taskBuildAnvil0.Wait();
+
+        Anvils.Add(taskBuildAnvil0.Result.Item1);
+        AnvilSizes.Add(taskBuildAnvil0.Result.Item2);
+        _anvilDivisorPosition = 7;
+
+        if (_lessRamMemory) return;
+
         var taskBuildAnvil1 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 8, 12));
         var taskBuildAnvil2 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 13, 16));
         var taskBuildAnvil3 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 17, 20));
-
-        taskBuildAnvil0.Wait();
         taskBuildAnvil1.Wait();
         taskBuildAnvil2.Wait();
         taskBuildAnvil3.Wait();
-
-        Anvils.Add(taskBuildAnvil0.Result.Item1);
         Anvils.Add(taskBuildAnvil1.Result.Item1);
-        Anvils.Add(taskBuildAnvil2.Result.Item1);
-        Anvils.Add(taskBuildAnvil3.Result.Item1);
-
-        AnvilSizes.Add(taskBuildAnvil0.Result.Item2);
         AnvilSizes.Add(taskBuildAnvil1.Result.Item2);
+        Anvils.Add(taskBuildAnvil2.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil2.Result.Item2);
+        Anvils.Add(taskBuildAnvil3.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil3.Result.Item2);
+        _anvilDivisorPosition = 20;
     }
 
     /*
@@ -249,6 +254,10 @@ internal static class ProgramClass
         var getPreviousWorkString = ConfigurationManager.AppSettings["GetPreviousWork"] ?? "true";
         // ReSharper disable once SimplifyConditionalTernaryExpression
         _getPreviousWork = bool.TryParse(getPreviousWorkString, out var getPreviousWork) ? getPreviousWork : true;
+
+        var lessRamMemoryString = ConfigurationManager.AppSettings["LessRamMemory"] ?? "false";
+        // ReSharper disable once SimplifyConditionalTernaryExpression
+        _lessRamMemory = bool.TryParse(lessRamMemoryString,out var lessRamMemory) ? lessRamMemory : false;
 
         _basePath = ConfigurationManager.AppSettings["basePath"] ?? "";
         if (!string.IsNullOrWhiteSpace(_basePath) && !_basePath.EndsWith("\\"))
@@ -961,23 +970,26 @@ internal static class ProgramClass
 
             grl.LoudReportGap("AfterBlockCopy"); // log how long it takes to put in the anvil.
 
-            byte[][] bytesMores = new byte[4][];
-            for (var i = 1; i <= 3; i++)
+            if (!_lessRamMemory)
             {
-                var bytesMore = new byte[Two28];
-                var notOffsetMore = loopMinCheckedValue / 2 % AnvilSizes[i];
-                while (notOffsetMore % 8 != 0)
-                    notOffsetMore += AnvilSizes[i];
-                notOffsetMore /= 8;
-                Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
-                bytesMores[i] = bytesMore;
+                byte[][] bytesMores = new byte[4][];
+                for (var i = 1; i <= 3; i++)
+                {
+                    var bytesMore = new byte[Two28];
+                    var notOffsetMore = loopMinCheckedValue / 2 % AnvilSizes[i];
+                    while (notOffsetMore % 8 != 0)
+                        notOffsetMore += AnvilSizes[i];
+                    notOffsetMore /= 8;
+                    Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
+                    bytesMores[i] = bytesMore;
+                }
+                BlendArrays(bytes00, bytesMores);
+                GC.Collect();
             }
-            BlendArrays(bytes00, bytesMores);
-            GC.Collect();
 
             grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
 
-            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, AnvilFillPosition, bytes00);
+            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, _anvilDivisorPosition, bytes00);
             grl.LoudReportGap("AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;
