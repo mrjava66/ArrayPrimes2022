@@ -1,4 +1,4 @@
-﻿using System.Configuration;
+﻿ using System.Configuration;
 
 namespace ArrayPrimes2022;
 
@@ -22,6 +22,7 @@ internal static class ProgramClass
 
     // limits the starting of tasks to one new task per 3.6 seconds
     private static DateTime _startTimeSpacer = DateTime.Now;
+
     private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(3600);
 
     /// <summary>
@@ -29,6 +30,7 @@ internal static class ProgramClass
     ///     future work will allow this to cover the next 5.
     /// </summary>
     private static readonly List<byte[]> Anvils = new();
+
     private static readonly List<ulong> AnvilSizes = new();
     private static uint _anvilDivisorPosition = 20;
 
@@ -37,6 +39,7 @@ internal static class ProgramClass
 
     //helps separate computers work together
     private static ulong _blockOffsetConfig;
+
     private static ulong _blockOffset;
 
     /// <summary>
@@ -257,7 +260,7 @@ internal static class ProgramClass
 
         var lessRamMemoryString = ConfigurationManager.AppSettings["LessRamMemory"] ?? "false";
         // ReSharper disable once SimplifyConditionalTernaryExpression
-        _lessRamMemory = bool.TryParse(lessRamMemoryString,out var lessRamMemory) ? lessRamMemory : false;
+        _lessRamMemory = bool.TryParse(lessRamMemoryString, out var lessRamMemory) ? lessRamMemory : false;
 
         _basePath = ConfigurationManager.AppSettings["basePath"] ?? "";
         if (!string.IsNullOrWhiteSpace(_basePath) && !_basePath.EndsWith("\\"))
@@ -340,8 +343,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-                where f.EndsWith("log") && f.Contains("\\GapArray.")
-                select f;
+            where f.EndsWith("log") && f.Contains("\\GapArray.")
+            select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -487,7 +490,7 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    /// outputs an array of counts of all gaps by bits of lower number.
+    ///     outputs an array of counts of all gaps by bits of lower number.
     /// </summary>
     /// <param name="fullDivisorList"></param>
     /// <param name="file"></param>
@@ -532,9 +535,9 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    /// updates previous work dictionary 'xd' to by synced with the current files in the system
-    /// at a cadence (spacing) of GetPreviousWorkCadence.  Then, if needed, recalculates the
-    /// _blockOffset to keep this instance's work separated from other instances.
+    ///     updates previous work dictionary 'xd' to by synced with the current files in the system
+    ///     at a cadence (spacing) of GetPreviousWorkCadence.  Then, if needed, recalculates the
+    ///     _blockOffset to keep this instance's work separated from other instances.
     /// </summary>
     /// <param name="xd"></param>
     /// <param name="firstBlock"></param>
@@ -644,24 +647,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        {
+            if (arrays[a][l] == 255) continue;
+            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
             {
-                if (arrays[a][l] == 255) continue;
-                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
-                {
-                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                    fdl[++countPrimeNumber] = (uint)prime;
+                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                fdl[++countPrimeNumber] = (uint)prime;
 
-                    gr.ReportGap(prime);
+                gr.ReportGap(prime);
 
-                    //outfile.WriteLine(prime);
-                    // don't need to sieve values greater than top.
-                    if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
-                }
+                //outfile.WriteLine(prime);
+                // don't need to sieve values greater than top.
+                if (prime < sieveTop)
+                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
             }
+        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "0\\0\\GapPrimes.0." + now + ".log", false);
@@ -692,6 +695,7 @@ internal static class ProgramClass
             {
                 Console.Error.WriteLine(e);
             }
+
         return taskBuildAnvil;
     }
 
@@ -972,7 +976,7 @@ internal static class ProgramClass
 
             if (!_lessRamMemory)
             {
-                byte[][] bytesMores = new byte[4][];
+                var bytesMores = new byte[4][];
                 for (var i = 1; i <= 3; i++)
                 {
                     var bytesMore = new byte[Two28];
@@ -983,6 +987,8 @@ internal static class ProgramClass
                     Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
                     bytesMores[i] = bytesMore;
                 }
+
+                grl.LoudReportGap("AfterBlockCopies0"); // log how long it takes to put in the blend in anvils.
                 BlendArrays(bytes00, bytesMores);
                 GC.Collect();
             }
@@ -1065,6 +1071,22 @@ internal static class ProgramClass
 
     private static void BlendArrays(byte[] bytes00, byte[][] bytesMore)
     {
+        /*
+         --does not work--
+        var ulongArray = MemoryMarshal.Cast<byte, ulong>(bytes00.AsSpan()).ToArray();
+        var bm1 = MemoryMarshal.Cast<byte, ulong>(bytesMore[1].AsSpan()).ToArray();
+        var bm2 = MemoryMarshal.Cast<byte, ulong>(bytesMore[2].AsSpan()).ToArray();
+        var bm3 = MemoryMarshal.Cast<byte, ulong>(bytesMore[3].AsSpan()).ToArray();
+
+        for (var i = 0; i < ulongArray.Length; i++)
+        {
+            ulong u = ulongArray[i];
+            u |= bm1[i];
+            u |= bm2[i];
+            u |= bm3[i];
+            ulongArray[i] = u;
+        }
+        */
         for (var i = 0; i < bytes00.Length; i++)
         {
             var b = bytes00[i];
@@ -1073,11 +1095,6 @@ internal static class ProgramClass
             b |= bytesMore[3][i];
             if ((b & bytes00[i]) != 0)
                 bytes00[i] = b;
-            /*
-            if (bytesMore[i] == 0) continue;
-            if ((bytes00[i] | bytesMore[i]) != bytes00[i])
-                bytes00[i] |= bytesMore[i];
-            */
         }
     }
 
