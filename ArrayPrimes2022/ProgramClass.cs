@@ -21,7 +21,7 @@ internal static class ProgramClass
 
     // limits the starting of tasks to one new task per 1.2 seconds
     private static DateTime _startTimeSpacer = DateTime.Now;
-    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(3600);
+    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
 
     //     the array that holds all the possible arrangements of the first 8 divisors that we will need.
     private static readonly byte[] Anvil;
