@@ -14,27 +14,32 @@ internal static class ProgramClass
     // run the entire number line in order, instead of the places where the big gaps are.
     private static bool _runAllBlocksInOrder = true;
 
+    private static bool _lessRamMemory; // make-use just the primary anvil.
     private static bool _getPreviousWork; // retrieve previous work and not rerun old blocks.
     private static bool _allowQuickCheckBailout = true; // quick check does not rerun old blocks.
     private static bool _reverse; // run the number line in reverse down from 2^64
     private static string _basePath = ""; // where the files are.
 
-    // limits the starting of tasks to one new task per 1.2 seconds
+    // limits the starting of tasks to one new task per 3.6 seconds
     private static DateTime _startTimeSpacer = DateTime.Now;
-    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(1200);
 
-    //     the array that holds all the possible arrangements of the first 8 divisors that we will need.
-    private static readonly byte[] Anvil;
-    private const ulong AnvilFillLevel = 9;
-    private static readonly int[] AnvilSeedArray = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23 };
-    private const ulong AnvilSize = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23;
-    private const ulong FullAnvilSize = AnvilSize * (8 + 1) + Two28;
+    private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(3600);
+
+    /// <summary>
+    ///     the array that holds all the possible arrangements of the first 8 divisors that we will need.
+    ///     future work will allow this to cover the next 5.
+    /// </summary>
+    private static readonly List<byte[]> Anvils = new();
+
+    private static readonly List<ulong> AnvilSizes = new();
+    private static uint _anvilDivisorPosition = 20;
 
     //     The minimum value to check.
     private static ulong _minvalueNumber;
 
     //helps separate computers work together
     private static ulong _blockOffsetConfig;
+
     private static ulong _blockOffset;
 
     /// <summary>
@@ -98,7 +103,6 @@ internal static class ProgramClass
 
     static ProgramClass()
     {
-        Anvil = new byte[FullAnvilSize];
     }
 
     public static bool BigArray { get; private set; } //controls if the two-dimensional gap array is made and displayed.
@@ -109,7 +113,30 @@ internal static class ProgramClass
     private static void BuildAnvil()
     {
         //build the full list
-        BuildAnvil0(AnvilSeedArray);
+        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73 };
+
+        var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 1, 7));
+        taskBuildAnvil0.Wait();
+
+        Anvils.Add(taskBuildAnvil0.Result.Item1);
+        AnvilSizes.Add(taskBuildAnvil0.Result.Item2);
+        _anvilDivisorPosition = 7;
+
+        if (_lessRamMemory) return;
+
+        var taskBuildAnvil1 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 8, 12));
+        var taskBuildAnvil2 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 13, 16));
+        var taskBuildAnvil3 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 17, 20));
+        taskBuildAnvil1.Wait();
+        taskBuildAnvil2.Wait();
+        taskBuildAnvil3.Wait();
+        Anvils.Add(taskBuildAnvil1.Result.Item1);
+        AnvilSizes.Add(taskBuildAnvil1.Result.Item2);
+        Anvils.Add(taskBuildAnvil2.Result.Item1);
+        AnvilSizes.Add(taskBuildAnvil2.Result.Item2);
+        Anvils.Add(taskBuildAnvil3.Result.Item1);
+        AnvilSizes.Add(taskBuildAnvil3.Result.Item2);
+        _anvilDivisorPosition = 20;
     }
 
     /*
@@ -183,9 +210,17 @@ internal static class ProgramClass
     }
     */
 
-    private static void BuildAnvil0(int[] dl)
+    private static (byte[], ulong) BuildAnAnvil(int[] dl, int start, int end)
     {
-        for (var divisorPosition = 1; divisorPosition < dl.Length; divisorPosition++)
+        ulong divisorSize = 1;
+        for (var i = start; i <= end; i++)
+            divisorSize *= (ulong)dl[i];
+
+        var fullSize = divisorSize * (8 + 1);
+        fullSize += Two28;
+        var anvil = new byte[fullSize];
+
+        for (var divisorPosition = start; divisorPosition <= end; divisorPosition++)
         {
             var p = dl[divisorPosition];
             var primeByte = (ulong)p / 8;
@@ -195,12 +230,12 @@ internal static class ProgramClass
             var offsetByte = (ulong)((p - 1) / 2 / 8);
             var offsetBit = (p - 1) / 2 % 8;
 
-            while (offsetByte < FullAnvilSize)
+            while (offsetByte < fullSize)
             {
                 var bib = (byte)(1 << offsetBit);
 
-                if ((Anvil[offsetByte] & bib) == 0)
-                    Anvil[offsetByte] |= bib;
+                if ((anvil[offsetByte] & bib) == 0)
+                    anvil[offsetByte] |= bib;
 
                 offsetByte += primeByte;
                 offsetBit += primeBit;
@@ -209,6 +244,8 @@ internal static class ProgramClass
                 offsetByte++;
             }
         }
+
+        return (anvil, divisorSize);
     }
 
     private static void ConfigureSystem()
@@ -220,6 +257,10 @@ internal static class ProgramClass
         var getPreviousWorkString = ConfigurationManager.AppSettings["GetPreviousWork"] ?? "true";
         // ReSharper disable once SimplifyConditionalTernaryExpression
         _getPreviousWork = bool.TryParse(getPreviousWorkString, out var getPreviousWork) ? getPreviousWork : true;
+
+        var lessRamMemoryString = ConfigurationManager.AppSettings["LessRamMemory"] ?? "false";
+        // ReSharper disable once SimplifyConditionalTernaryExpression
+        _lessRamMemory = bool.TryParse(lessRamMemoryString, out var lessRamMemory) ? lessRamMemory : false;
 
         _basePath = ConfigurationManager.AppSettings["basePath"] ?? "";
         if (!string.IsNullOrWhiteSpace(_basePath) && !_basePath.EndsWith("\\"))
@@ -238,7 +279,23 @@ internal static class ProgramClass
                     _taskLimit = Environment.ProcessorCount - 1;
             }
 
-        Console.WriteLine($"TaskLimit={_taskLimit}");
+        try
+        {
+            var taskLimitSet = ConfigurationManager.AppSettings["taskLimitSet"] ?? "";
+            var me = Environment.MachineName.ToLower() + ",";
+            var loc = taskLimitSet.ToLower().IndexOf(me, StringComparison.Ordinal);
+            if (loc >= 0)
+            {
+                var numString = taskLimitSet.Substring(loc + me.Length).Split(";")[0];
+                var didTaskMe = int.TryParse(numString, out var taskMe);
+                if (didTaskMe)
+                    _taskLimit = taskMe;
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
 
         const string linear = "linear";
         var blockOrder = (ConfigurationManager.AppSettings["BlockOrder"] ?? linear).ToLower();
@@ -286,6 +343,13 @@ internal static class ProgramClass
             Console.Error.WriteLine("Block Offset Error");
             Console.Error.WriteLine(e.Message);
         }
+
+        var quickCheckReport = string.IsNullOrWhiteSpace(_quickCheck) ? "_blank_" : _quickCheck;
+        Console.WriteLine($"BigArray={BigArray},GetPreviousWork={_getPreviousWork},LessRamMemory={_lessRamMemory},basePath={_basePath},{Environment.NewLine}" +
+                          $"TaskLimit={_taskLimit},BlockOrder={blockOrder};{_runAllBlocksInOrder},QuickCheck={quickCheckReport},{Environment.NewLine}" +
+                          $"Reverse={_reverse},BlockOffset={_blockOffset}");
+
+
     }
 
     private static Dictionary<uint, bool> GetPreviousWork()
@@ -405,11 +469,13 @@ internal static class ProgramClass
                     minvalue++;
                 }
 
-                //while (minvalue < maxvalue)
-                //{
-                //    if (!xd.Keys.Contains(maxvalue-1)) break;
-                //    maxvalue--;
-                //}
+                /*
+                while (minvalue < maxvalue)
+                {
+                    if (!xd.Keys.Contains(maxvalue-1)) break;
+                    maxvalue--;
+                }
+                */
 
                 if (minvalue == maxvalue) continue;
 
@@ -449,7 +515,7 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    /// outputs an array of counts of all gaps by bits of lower number.
+    ///     outputs an array of counts of all gaps by bits of lower number.
     /// </summary>
     /// <param name="fullDivisorList"></param>
     /// <param name="file"></param>
@@ -494,9 +560,9 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    /// updates previous work dictionary 'xd' to by synced with the current files in the system
-    /// at a cadence (spacing) of GetPreviousWorkCadence.  Then, if needed, recalculates the
-    /// _blockOffset to keep this instance's work separated from other instances.
+    ///     updates previous work dictionary 'xd' to by synced with the current files in the system
+    ///     at a cadence (spacing) of GetPreviousWorkCadence.  Then, if needed, recalculates the
+    ///     _blockOffset to keep this instance's work separated from other instances.
     /// </summary>
     /// <param name="xd"></param>
     /// <param name="firstBlock"></param>
@@ -654,6 +720,7 @@ internal static class ProgramClass
             {
                 Console.Error.WriteLine(e);
             }
+
         return taskBuildAnvil;
     }
 
@@ -923,16 +990,37 @@ internal static class ProgramClass
             //// markup the array. (use the divisor array, update the divisor array)
             var bytes00 = new byte[Two28];
 
-            var notOffset = loopMinCheckedValue / 2 % AnvilSize;
+            var notOffset = loopMinCheckedValue / 2 % AnvilSizes[0];
             while (notOffset % 8 != 0)
-                notOffset += AnvilSize;
+                notOffset += AnvilSizes[0];
             notOffset /= 8;
 
-            Buffer.BlockCopy(Anvil, (int)notOffset, bytes00, 0, (int)Two28);
+            Buffer.BlockCopy(Anvils[0], (int)notOffset, bytes00, 0, (int)Two28);
 
             grl.LoudReportGap("AfterBlockCopy"); // log how long it takes to put in the anvil.
 
-            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, AnvilFillLevel, bytes00);
+            if (!_lessRamMemory)
+            {
+                var bytesMores = new byte[4][];
+                for (var i = 1; i <= 3; i++)
+                {
+                    var bytesMore = new byte[Two28];
+                    var notOffsetMore = loopMinCheckedValue / 2 % AnvilSizes[i];
+                    while (notOffsetMore % 8 != 0)
+                        notOffsetMore += AnvilSizes[i];
+                    notOffsetMore /= 8;
+                    Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
+                    bytesMores[i] = bytesMore;
+                }
+
+                grl.LoudReportGap("AfterBlockCopies0"); // log how long it takes to put in the blend in anvils.
+                BlendArrays(bytes00, bytesMores);
+                GC.Collect();
+            }
+
+            grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
+
+            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, _anvilDivisorPosition, bytes00);
             grl.LoudReportGap("AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;
@@ -1003,6 +1091,35 @@ internal static class ProgramClass
             }
 
             gapReportCarryState = grl.State;
+        }
+    }
+
+    private static void BlendArrays(byte[] bytes00, byte[][] bytesMore)
+    {
+        /*
+         --does not work--
+        var ulongArray = MemoryMarshal.Cast<byte, ulong>(bytes00.AsSpan()).ToArray();
+        var bm1 = MemoryMarshal.Cast<byte, ulong>(bytesMore[1].AsSpan()).ToArray();
+        var bm2 = MemoryMarshal.Cast<byte, ulong>(bytesMore[2].AsSpan()).ToArray();
+        var bm3 = MemoryMarshal.Cast<byte, ulong>(bytesMore[3].AsSpan()).ToArray();
+
+        for (var i = 0; i < ulongArray.Length; i++)
+        {
+            ulong u = ulongArray[i];
+            u |= bm1[i];
+            u |= bm2[i];
+            u |= bm3[i];
+            ulongArray[i] = u;
+        }
+        */
+        for (var i = 0; i < bytes00.Length; i++)
+        {
+            var b = bytes00[i];
+            b |= bytesMore[1][i];
+            b |= bytesMore[2][i];
+            b |= bytesMore[3][i];
+            if ((b & bytes00[i]) != 0)
+                bytes00[i] = b;
         }
     }
 
