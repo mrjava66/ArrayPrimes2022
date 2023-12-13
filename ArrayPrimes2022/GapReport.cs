@@ -61,8 +61,6 @@ public class GapReport
 
         var ulongGap = prime - _lastPrimeNum;
 
-        //if (ulongGap > 1000) Console.WriteLine($"Special Gap {ulongGap}");
-
         if (_lastGap == ulongGap)
             _gapRepeat++;
         else

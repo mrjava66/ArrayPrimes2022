@@ -291,13 +291,11 @@ internal static class ProgramClass
                 if (didTaskMe)
                     _taskLimit = taskMe;
             }
-
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
         }
-
 
         const string linear = "linear";
         var blockOrder = (ConfigurationManager.AppSettings["BlockOrder"] ?? linear).ToLower();
