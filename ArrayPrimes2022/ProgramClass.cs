@@ -1,4 +1,4 @@
-﻿ using System.Configuration;
+﻿using System.Configuration;
 
 namespace ArrayPrimes2022;
 
@@ -279,7 +279,25 @@ internal static class ProgramClass
                     _taskLimit = Environment.ProcessorCount - 1;
             }
 
-        Console.WriteLine($"TaskLimit={_taskLimit}");
+        try
+        {
+            var taskLimitSet = ConfigurationManager.AppSettings["taskLimitSet"] ?? "";
+            var me = Environment.MachineName.ToLower() + ",";
+            var loc = taskLimitSet.ToLower().IndexOf(me, StringComparison.Ordinal);
+            if (loc >= 0)
+            {
+                var numString = taskLimitSet.Substring(loc + me.Length).Split(";")[0];
+                var didTaskMe = int.TryParse(numString, out var taskMe);
+                if (didTaskMe)
+                    _taskLimit = taskMe;
+            }
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+
 
         const string linear = "linear";
         var blockOrder = (ConfigurationManager.AppSettings["BlockOrder"] ?? linear).ToLower();
@@ -327,6 +345,13 @@ internal static class ProgramClass
             Console.Error.WriteLine("Block Offset Error");
             Console.Error.WriteLine(e.Message);
         }
+
+        var quickCheckReport = string.IsNullOrWhiteSpace(_quickCheck) ? "_blank_" : _quickCheck;
+        Console.WriteLine($"BigArray={BigArray},GetPreviousWork={_getPreviousWork},LessRamMemory={_lessRamMemory},basePath={_basePath},{Environment.NewLine}" +
+                          $"TaskLimit={_taskLimit},BlockOrder={blockOrder};{_runAllBlocksInOrder},QuickCheck={quickCheckReport},{Environment.NewLine}" +
+                          $"Reverse={_reverse},BlockOffset={_blockOffset}");
+
+
     }
 
     private static Dictionary<uint, bool> GetPreviousWork()
@@ -343,8 +368,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-            where f.EndsWith("log") && f.Contains("\\GapArray.")
-            select f;
+                where f.EndsWith("log") && f.Contains("\\GapArray.")
+                select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -446,11 +471,13 @@ internal static class ProgramClass
                     minvalue++;
                 }
 
-                //while (minvalue < maxvalue)
-                //{
-                //    if (!xd.Keys.Contains(maxvalue-1)) break;
-                //    maxvalue--;
-                //}
+                /*
+                while (minvalue < maxvalue)
+                {
+                    if (!xd.Keys.Contains(maxvalue-1)) break;
+                    maxvalue--;
+                }
+                */
 
                 if (minvalue == maxvalue) continue;
 
@@ -647,24 +674,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
-        {
-            if (arrays[a][l] == 255) continue;
-            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
-                if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (arrays[a][l] == 255) continue;
+                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+                {
+                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                fdl[++countPrimeNumber] = (uint)prime;
+                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                    fdl[++countPrimeNumber] = (uint)prime;
 
-                gr.ReportGap(prime);
+                    gr.ReportGap(prime);
 
-                //outfile.WriteLine(prime);
-                // don't need to sieve values greater than top.
-                if (prime < sieveTop)
-                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
+                    //outfile.WriteLine(prime);
+                    // don't need to sieve values greater than top.
+                    if (prime < sieveTop)
+                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
+                }
             }
-        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "0\\0\\GapPrimes.0." + now + ".log", false);

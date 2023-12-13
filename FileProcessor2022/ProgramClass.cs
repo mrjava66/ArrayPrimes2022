@@ -102,7 +102,7 @@ internal static class ProgramClass
             ulong lastContinuousCheck = 0;
             ulong blockNumberFix = uint.MaxValue / 2;
             var overBlockGap = (ulong)uint.MaxValue + 4000;
-            _allLastPrimeRows = _allLastPrimeRows.OrderBy(o => o.StartPrime).ToList();
+            _allLastPrimeRows = _allLastPrimeRows.OrderBy(o => o.StartPrime).ThenBy(o => o.GapSize).ToList();
             foreach (var val in _allLastPrimeRows)
             {
                 if (val.StartPrime == lastStartPrime)
@@ -466,14 +466,31 @@ internal static class ProgramClass
                         var target = groupFiles[0].Substring(ls2, ls1 - ls2);
                         // ReSharper disable once UnusedVariable
                         var destinationArchiveFileName = groupFiles[0].Substring(0, ls2) + target + ".zip";
-                        var summaryFileName = fileMask.Replace("*", $"{group * 1024}_{group * 1024 + groupPos}");
-                        var summaryFilePath = groupFiles[0].Substring(0, ls2) + "\\" + summaryFileName;
+                        var start = group * 1024;
+                        var end = group * 1024 + groupPos;
+                        var ok = true;
+                        for (var check = start; check <= end; check++)
+                        {
+                            if (groupFiles.Any(f => f.Contains($"GapPrimes.{check}.")))
+                                continue;
+                            ok = false;
+                            break;
+                        }
 
-                        if (!File.Exists(summaryFilePath))
-                            CreateSummaryFile(groupFiles, summaryFilePath);
-                        //Console.WriteLine($"Zip {sourceDirectoryName} {destinationArchiveFileName}");
-                        //ZipFile.CreateFromDirectory(sourceDirectoryName, destinationArchiveFileName, CompressionLevel.SmallestSize, false);
-                        //?todo remove old
+                        if (ok)
+                        {
+                            var summaryFileName = fileMask.Replace("*", $"{start}_{end}");
+                            var summaryFilePath = groupFiles[0].Substring(0, ls2) + "\\" + summaryFileName;
+                            if (!File.Exists(summaryFilePath))
+                                CreateSummaryFile(groupFiles, summaryFilePath);
+                            //Console.WriteLine($"Zip {sourceDirectoryName} {destinationArchiveFileName}");
+                            //ZipFile.CreateFromDirectory(sourceDirectoryName, destinationArchiveFileName, CompressionLevel.SmallestSize, false);
+                            //?todo remove old
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Interesting,{start},{end},{group}");
+                        }
                     }
 
                 //new group
@@ -587,21 +604,24 @@ internal static class ProgramClass
         try
         {
             var allFileRows = new List<string>();
-            var tasks = new List<Task<string[]?>>();
+            var tasks = new List<(Task<string[]?>, string)>();
             foreach (var groupFile in groupFiles)
             {
                 var aGroupFile = groupFile;
                 var task = Task.Factory.StartNew(() => ReadAllLines(aGroupFile));
-                tasks.Add(task);
+                tasks.Add((task, groupFile));
             }
 
             foreach (var task in tasks)
             {
-                task.Wait();
+                task.Item1.Wait();
                 //something went wrong.
-                if (task.Result == null)
+                if (task.Item1.Result == null)
                     continue;
-                foreach (var row in task.Result) allFileRows.Add(row);
+                allFileRows.AddRange(task.Item1.Result);
+                var lastRowOfTask = task.Item1.Result[^1];
+                if (!lastRowOfTask.StartsWith("LastPrime"))
+                    throw new Exception($"File {task.Item2} does not have LastPrime");
             }
 
             // ReSharper disable once RedundantAssignment
@@ -779,16 +799,23 @@ internal static class ProgramClass
 
         decimal lastWhen = 0;
         ulong lastLastPrime = 0;
+        ulong previousLastLastPrime = 0;
         foreach (var row in rows.OrderBy(x => x.StartPrime).ThenBy(x => x.GapSize))
         {
             if (row.GapType == "LastPrime")
             {
                 lastWhen += row.When;
                 if (lastLastPrime == row.StartPrime)
-                    continue;
+                {
+                    if (_allLastPrimeRows.Count == 1)
+                        continue;
+                    _allLastPrimeRows.RemoveAt(_allLastPrimeRows.Count-1);
+                    lastLastPrime = previousLastLastPrime;
+                }
                 var oddGaps = (uint)oddGapList.Count(x => lastLastPrime < x && x <= row.StartPrime);
                 row.GapSize -= oddGaps;
                 _allLastPrimeRows.Add(row);
+                previousLastLastPrime = lastLastPrime;
                 lastLastPrime = row.StartPrime;
                 continue;
             }
