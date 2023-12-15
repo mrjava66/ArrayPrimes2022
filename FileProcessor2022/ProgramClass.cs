@@ -1,4 +1,5 @@
 ﻿using System.Configuration;
+using System.Text;
 
 namespace FileProcessor2022;
 
@@ -132,9 +133,14 @@ internal static class ProgramClass
             var levelEnough = 1;
             ulong sum = 0;
             ulong twinSum = 0;
+            ulong sixSum = 0;
+            ulong thirtySum = 0;
             ulong lastBlock = 0;
             var bits = 33;
             ulong lastPrime = 0;
+            var splits2 = new StringBuilder();
+            var splits6 = new StringBuilder();
+            var splits30 = new StringBuilder();
             foreach (var val in _allLastPrimeRows.Skip(1))
             {
                 var block = (val.StartPrime - blockNumberFix) / uint.MaxValue;
@@ -147,7 +153,8 @@ internal static class ProgramClass
                 {
                     var fileSearch = $"{folder}\\{block / 1024 / 1024}\\{block / 1024}";
                     var fileSearchMask = $"GapArray.{block}.*.log";
-                    var aFile = Directory.GetFiles(fileSearch, fileSearchMask, SearchOption.TopDirectoryOnly)
+                    var aFile = Directory
+                        .GetFiles(fileSearch, fileSearchMask, SearchOption.TopDirectoryOnly)
                         .MaxBy(x => x);
                     if (aFile == null)
                     {
@@ -155,55 +162,94 @@ internal static class ProgramClass
                     }
                     else
                     {
-                        var found1Gap = false;
-                        var found2Gap = false;
+                        var foundOddGap = false;
+                        var line2 = "";
+                        var line6 = "";
+                        var line30 = "";
                         var reader = File.ReadLines(aFile);
-                        var line = "";
                         foreach (var aline in reader)
-                        {
-                            if (aline.StartsWith("Gap,1,Found,"))
+                            try
                             {
-                                found1Gap = true;
+                                var linePieces = aline.Split(',');
+                                var did1 = int.TryParse(linePieces[1], out var aGapSize);
+                                if (!did1)
+                                    continue;
+
+                                if (aGapSize % 2 == 1)
+                                {
+                                    foundOddGap = true;
+                                    continue;
+                                }
+
+                                var exit = false;
+                                switch (aGapSize)
+                                {
+                                    case 2:
+                                        line2 = aline;
+                                        break;
+                                    case 6:
+                                        line6 = aline;
+                                        break;
+                                    case 30:
+                                        line30 = aline;
+                                        exit = true;
+                                        break;
+                                }
+
+                                if (exit)
+                                    break;
                             }
-                            else if (aline.StartsWith("Gap,2,Found,"))
+                            catch (Exception e)
                             {
-                                line = aline;
-                                found2Gap = true;
-                                break;
+                                Console.WriteLine(e);
                             }
-                        }
+
                         // ReSharper disable once RedundantAssignment
                         reader = null;
-                        if (found2Gap == false)
+
+                        if (string.IsNullOrWhiteSpace(line2) && string.IsNullOrWhiteSpace(line6))
                         {
                             TwinTotals = false;
                         }
                         else
                         {
-                            ulong extra = 0;
-                            if (found1Gap)
+                            ulong extra2 = 0;
+                            ulong extra6 = 0;
+                            ulong extra30 = 0;
+                            if (foundOddGap)
                             {
-                                lastPrime += 1;
-                                lastPrime %= Two32;
-                                if (lastPrime == 0)
+                                ulong thisPrime = 0;
+                                var aFile2 = aFile.Replace("GapArray", "GapPrimes");
+                                var reader2 = File.ReadLines(aFile2);
+                                foreach (var aline2 in reader2)
                                 {
-                                    Console.WriteLine($"Split Twin Prime,{block},{aFile}");
-                                    extra = 1;
+                                    if (!aline2.StartsWith("1st Gap,"))
+                                        continue;
+                                    thisPrime = SplitAndGet(aline2);
+                                    break;
+                                }
+
+                                var gap = thisPrime - lastPrime;
+                                if (gap == 2)
+                                {
+                                    splits2.AppendLine($"Split Twin Prime,{block},{aFile}");
+                                    extra2 = 1;
+                                }
+                                else if (gap == 6)
+                                {
+                                    splits6.AppendLine($"Split Six-Prime ,{block},{aFile}");
+                                    extra6 = 1;
+                                }
+                                else if (gap == 30)
+                                {
+                                    splits30.AppendLine($"Split 30-Prime  ,{block},{aFile}");
+                                    extra30 = 1;
                                 }
                             }
-                            var lineParts = line.Split(',');
-                            if (lineParts.Length < 4)
-                            {
-                                TwinTotals = false;
-                            }
-                            else
-                            {
-                                var didNum = ulong.TryParse(lineParts[3], out var num);
-                                if (!didNum)
-                                    TwinTotals = false;
-                                else
-                                    twinSum += num + extra;
-                            }
+
+                            SplitAndSum(line2, ref twinSum, extra2);
+                            SplitAndSum(line6, ref sixSum, extra6);
+                            SplitAndSum(line30, ref thirtySum, extra30);
                         }
                     }
                 }
@@ -213,8 +259,12 @@ internal static class ProgramClass
                 {
                     if (TwinTotals)
                     {
-                        Console.WriteLine($"Twin,{bits},{twinSum},{level}");
+                        Console.WriteLine($" Twin,{bits},{twinSum},{level}");
                         twinSum = 0;
+                        Console.WriteLine($"  Six,{bits},{sixSum},{level}");
+                        sixSum = 0;
+                        Console.WriteLine($"Gap30,{bits},{thirtySum},{level}");
+                        thirtySum = 0;
                     }
 
                     Console.WriteLine($"Total,{bits},{sum},{level}");
@@ -227,6 +277,9 @@ internal static class ProgramClass
                 lastPrime = val.StartPrime;
             }
 
+            Console.Write(splits2);
+            Console.Write(splits6);
+            Console.Write(splits30);
             _allLastPrimeRows.Clear();
             GC.Collect();
 
@@ -339,6 +392,35 @@ internal static class ProgramClass
                 ex = ex.InnerException;
             }
         }
+    }
+
+    private static void SplitAndSum(string line, ref ulong sum, ulong extra)
+    {
+        var lineParts = line.Split(',');
+        if (lineParts.Length < 4)
+        {
+            TwinTotals = false;
+        }
+        else
+        {
+            var didNum = ulong.TryParse(lineParts[3], out var num);
+            if (!didNum)
+                TwinTotals = false;
+            else
+                sum += num + extra;
+        }
+    }
+
+    private static ulong SplitAndGet(string line)
+    {
+        var lineParts = line.Split(',');
+        if (lineParts.Length < 4)
+            return 0;
+        var primeString = lineParts[3];
+        var didNum = ulong.TryParse(primeString, out var num);
+        if (!didNum)
+            return 0;
+        return num;
     }
 
     private static void OutputSome(ulong lastContinuousCheck, string type, uint threeSize)
@@ -809,9 +891,10 @@ internal static class ProgramClass
                 {
                     if (_allLastPrimeRows.Count == 1)
                         continue;
-                    _allLastPrimeRows.RemoveAt(_allLastPrimeRows.Count-1);
+                    _allLastPrimeRows.RemoveAt(_allLastPrimeRows.Count - 1);
                     lastLastPrime = previousLastLastPrime;
                 }
+
                 var oddGaps = (uint)oddGapList.Count(x => lastLastPrime < x && x <= row.StartPrime);
                 row.GapSize -= oddGaps;
                 _allLastPrimeRows.Add(row);
