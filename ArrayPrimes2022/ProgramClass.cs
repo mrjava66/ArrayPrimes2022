@@ -1001,21 +1001,24 @@ internal static class ProgramClass
 
             if (!_lessRamMemory)
             {
-                var bytesMores = new byte[4][];
+                //var bytesMores = new byte[4][];
+                var notOffsets = new ulong[4];
                 for (var i = 1; i <= 3; i++)
                 {
-                    var bytesMore = new byte[Two28];
+                    //var bytesMore = new byte[Two28];
                     var notOffsetMore = loopMinCheckedValue / 2 % AnvilSizes[i];
                     while (notOffsetMore % 8 != 0)
                         notOffsetMore += AnvilSizes[i];
                     notOffsetMore /= 8;
-                    Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
-                    bytesMores[i] = bytesMore;
+                    //Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
+                    //bytesMores[i] = bytesMore;
+                    notOffsets[i] = notOffsetMore;
                 }
 
                 grl.LoudReportGap("AfterBlockCopies0"); // log how long it takes to put in the blend in anvils.
-                BlendArrays(bytes00, bytesMores);
-                GC.Collect();
+                //BlendArrays(bytes00, bytesMores);
+                //GC.Collect();
+                BlendIntoArray(bytes00, notOffsets);
             }
 
             grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
@@ -1091,6 +1094,22 @@ internal static class ProgramClass
             }
 
             gapReportCarryState = grl.State;
+        }
+    }
+
+    private static void BlendIntoArray(byte[] bytes00, ulong[] notOffsets)
+    {
+        var a1 = (int)notOffsets[1];
+        var a2 = (int)notOffsets[2];
+        var a3 = (int)notOffsets[3];
+        for (var i = 0; i < bytes00.Length; i++)
+        {
+            var b = bytes00[i];
+            b |= Anvils[1][a1 + i];
+            b |= Anvils[2][a2 + i];
+            b |= Anvils[3][a3 + i];
+            if ((b & bytes00[i]) != 0)
+                bytes00[i] = b;
         }
     }
 

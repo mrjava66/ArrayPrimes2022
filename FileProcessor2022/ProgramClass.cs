@@ -108,6 +108,7 @@ internal static class ProgramClass
             {
                 if (val.StartPrime == lastStartPrime)
                     continue;
+
                 if (val.StartPrime > lastStartPrime + overBlockGap && lastContinuousCheck == 0)
                 {
                     lastContinuousCheck = lastStartPrime;
@@ -149,110 +150,9 @@ internal static class ProgramClass
                 lastBlock = block;
 
                 sum += val.GapSize;
-                if (TwinTotals)
-                {
-                    var fileSearch = $"{folder}\\{block / 1024 / 1024}\\{block / 1024}";
-                    var fileSearchMask = $"GapArray.{block}.*.log";
-                    var aFile = Directory
-                        .GetFiles(fileSearch, fileSearchMask, SearchOption.TopDirectoryOnly)
-                        .MaxBy(x => x);
-                    if (aFile == null)
-                    {
-                        TwinTotals = false;
-                    }
-                    else
-                    {
-                        var foundOddGap = false;
-                        var line2 = "";
-                        var line6 = "";
-                        var line30 = "";
-                        var reader = File.ReadLines(aFile);
-                        foreach (var aline in reader)
-                            try
-                            {
-                                var linePieces = aline.Split(',');
-                                var did1 = int.TryParse(linePieces[1], out var aGapSize);
-                                if (!did1)
-                                    continue;
-
-                                if (aGapSize % 2 == 1)
-                                {
-                                    foundOddGap = true;
-                                    continue;
-                                }
-
-                                var exit = false;
-                                switch (aGapSize)
-                                {
-                                    case 2:
-                                        line2 = aline;
-                                        break;
-                                    case 6:
-                                        line6 = aline;
-                                        break;
-                                    case 30:
-                                        line30 = aline;
-                                        exit = true;
-                                        break;
-                                }
-
-                                if (exit)
-                                    break;
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine(e);
-                            }
-
-                        // ReSharper disable once RedundantAssignment
-                        reader = null;
-
-                        if (string.IsNullOrWhiteSpace(line2) && string.IsNullOrWhiteSpace(line6))
-                        {
-                            TwinTotals = false;
-                        }
-                        else
-                        {
-                            ulong extra2 = 0;
-                            ulong extra6 = 0;
-                            ulong extra30 = 0;
-                            if (foundOddGap)
-                            {
-                                ulong thisPrime = 0;
-                                var aFile2 = aFile.Replace("GapArray", "GapPrimes");
-                                var reader2 = File.ReadLines(aFile2);
-                                foreach (var aline2 in reader2)
-                                {
-                                    if (!aline2.StartsWith("1st Gap,"))
-                                        continue;
-                                    thisPrime = SplitAndGet(aline2);
-                                    break;
-                                }
-
-                                var gap = thisPrime - lastPrime;
-                                if (gap == 2)
-                                {
-                                    splits2.AppendLine($"Split Twin Prime,{block},{aFile}");
-                                    extra2 = 1;
-                                }
-                                else if (gap == 6)
-                                {
-                                    splits6.AppendLine($"Split Six-Prime ,{block},{aFile}");
-                                    extra6 = 1;
-                                }
-                                else if (gap == 30)
-                                {
-                                    splits30.AppendLine($"Split 30-Prime  ,{block},{aFile}");
-                                    extra30 = 1;
-                                }
-                            }
-
-                            SplitAndSum(line2, ref twinSum, extra2);
-                            SplitAndSum(line6, ref sixSum, extra6);
-                            SplitAndSum(line30, ref thirtySum, extra30);
-                        }
-                    }
-                }
+                IncrementTwinTotals(folder, block, lastPrime
+                    , splits2, splits6, splits30
+                    , ref twinSum, ref sixSum, ref thirtySum);
 
                 level++;
                 if (level == levelEnough)
@@ -394,6 +294,133 @@ internal static class ProgramClass
         }
     }
 
+    private static void IncrementTwinTotals(string folder, ulong block, ulong lastPrime, StringBuilder splits2,
+        StringBuilder splits6, StringBuilder splits30, ref ulong twinSum, ref ulong sixSum, ref ulong thirtySum)
+    {
+        if (!TwinTotals)
+            return;
+
+        try
+        {
+            var fileSearch = $"{folder}\\{block / 1024 / 1024}\\{block / 1024}";
+            var fileSearchMask = $"GapArray.{block}.*.log";
+            var aFile = Directory
+                .GetFiles(fileSearch, fileSearchMask, SearchOption.TopDirectoryOnly)
+                .MaxBy(x => x);
+
+            if (aFile == null)
+            {
+                TwinTotals = false;
+                return;
+            }
+
+            var foundOddGap = false;
+            var line2 = "";
+            var line6 = "";
+            var line30 = "";
+            var reader = File.ReadLines(aFile);
+
+            foreach (var aline in reader)
+                try
+                {
+                    var linePieces = aline.Split(',');
+                    var did1 = int.TryParse(linePieces[1], out var aGapSize);
+                    if (!did1)
+                        continue;
+
+                    if (aGapSize % 2 == 1)
+                    {
+                        foundOddGap = true;
+                        continue;
+                    }
+
+                    var exit = false;
+                    switch (aGapSize)
+                    {
+                        case 2:
+                            line2 = aline;
+                            break;
+
+                        case 6:
+                            line6 = aline;
+                            break;
+
+                        case 30:
+                            line30 = aline;
+                            exit = true;
+                            break;
+                    }
+
+                    if (exit)
+                        break;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+
+            // ReSharper disable once RedundantAssignment
+            reader = null;
+
+            if (string.IsNullOrWhiteSpace(line2) 
+                || string.IsNullOrWhiteSpace(line6) 
+                || string.IsNullOrWhiteSpace(line30))
+            {
+                TwinTotals = false;
+                return;
+            }
+
+            ulong extra2 = 0;
+            ulong extra6 = 0;
+            ulong extra30 = 0;
+            ulong thisPrime = 0;
+            ulong thisGap = 0;
+            if (foundOddGap)
+            {
+                //ulong thisPrime = 0;
+                var aFile2 = aFile.Replace("GapArray", "GapPrimes");
+                var reader2 = File.ReadLines(aFile2);
+                foreach (var aline2 in reader2)
+                {
+                    if (!aline2.StartsWith("1st Gap,"))
+                        continue;
+                    (thisPrime, thisGap) = SplitAndGet(aline2);
+                    break;
+                }
+
+                var gap = thisPrime - lastPrime;
+                if (thisGap % 2 == 0)
+                {
+                    //first gap even.
+                    //Console.WriteLine($"First Gap Even {block},{aFile2}");
+                }
+                else if (gap == 2)
+                {
+                    splits2.AppendLine($"Split Twin Prime,{block},{aFile}");
+                    extra2 = 1;
+                }
+                else if (gap == 6)
+                {
+                    splits6.AppendLine($"Split Six-Prime ,{block},{aFile}");
+                    extra6 = 1;
+                }
+                else if (gap == 30)
+                {
+                    splits30.AppendLine($"Split 30-Prime  ,{block},{aFile}");
+                    extra30 = 1;
+                }
+            }
+
+            SplitAndSum(line2, ref twinSum, extra2);
+            SplitAndSum(line6, ref sixSum, extra6);
+            SplitAndSum(line30, ref thirtySum, extra30);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
     private static void SplitAndSum(string line, ref ulong sum, ulong extra)
     {
         var lineParts = line.Split(',');
@@ -411,16 +438,22 @@ internal static class ProgramClass
         }
     }
 
-    private static ulong SplitAndGet(string line)
+    private static (ulong, ulong) SplitAndGet(string line)
     {
         var lineParts = line.Split(',');
         if (lineParts.Length < 4)
-            return 0;
+            return (0, 0);
+
+        var gapString = lineParts[1];
+        var didGap = ulong.TryParse(gapString, out var gap);
+        if (!didGap)
+            return (0, 0);
+
         var primeString = lineParts[3];
-        var didNum = ulong.TryParse(primeString, out var num);
-        if (!didNum)
-            return 0;
-        return num;
+        var didPrime = ulong.TryParse(primeString, out var prime);
+        if (!didPrime)
+            return (0, 0);
+        return (prime, gap);
     }
 
     private static void OutputSome(ulong lastContinuousCheck, string type, uint threeSize)
