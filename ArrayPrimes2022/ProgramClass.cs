@@ -113,6 +113,11 @@ internal static class ProgramClass
     private static void BuildAnvil()
     {
         //build the full list
+        //2,
+        //3, 5, 7, 11, 13, 17, 19,
+        //23, 29, 31, 37, 41,
+        //43, 47, 53, 59,
+        //61, 67, 71, 73,
         var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73 };
 
         var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 1, 7));
@@ -487,6 +492,8 @@ internal static class ProgramClass
 
                 ManageTasks(tasks);
 
+                if (GetStopValue()) break;
+
                 MaintainPreviousWork(ref xd, firstBlock, runBlock, lastBlock, minBlock, blockAssignmentSize);
 
                 StartNewSpacer();
@@ -500,6 +507,7 @@ internal static class ProgramClass
             //wait for all tasks to complete.
             while (tasks.Count > 0)
             {
+                Console.Write($"Waiting for tasks to complete. {tasks.Count} left.{DateTime.Now}");
                 tasks[0].Wait();
                 ManageTasks(tasks);
             }
@@ -512,6 +520,23 @@ internal static class ProgramClass
                 ex = ex.InnerException;
             }
         }
+    }
+
+    private static bool GetStopValue()
+    {
+        try
+        {
+            var mConfiguration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+            var value = mConfiguration.AppSettings.Settings["Stop"];
+            var didValue = bool.TryParse(value.Value, out bool valueBool);
+            if (didValue && valueBool)
+                return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+        return false;
     }
 
     /// <summary>
@@ -1099,6 +1124,15 @@ internal static class ProgramClass
 
     private static void BlendIntoArray(byte[] bytes00, ulong[] notOffsets)
     {
+        for (var j = 1; j <= 3; j++)
+        {
+            if (notOffsets[j] + Two28 > int.MaxValue)
+                throw new Exception($"Cannot work with offset0,{j},{notOffsets[j]}");
+            if ((long)notOffsets[j] + bytes00.LongLength > Anvils[j].LongLength)
+                throw new Exception($"Cannot work with offset1,{j},{notOffsets[j]},{bytes00.LongLength},{Anvils[j].LongLength}");
+            if (notOffsets[j] > AnvilSizes[j])
+                throw new Exception($"Cannot work with offset2,{notOffsets[j]},{AnvilSizes[j]}");
+        }
         var a1 = (int)notOffsets[1];
         var a2 = (int)notOffsets[2];
         var a3 = (int)notOffsets[3];
@@ -1115,22 +1149,6 @@ internal static class ProgramClass
 
     private static void BlendArrays(byte[] bytes00, byte[][] bytesMore)
     {
-        /*
-         --does not work--
-        var ulongArray = MemoryMarshal.Cast<byte, ulong>(bytes00.AsSpan()).ToArray();
-        var bm1 = MemoryMarshal.Cast<byte, ulong>(bytesMore[1].AsSpan()).ToArray();
-        var bm2 = MemoryMarshal.Cast<byte, ulong>(bytesMore[2].AsSpan()).ToArray();
-        var bm3 = MemoryMarshal.Cast<byte, ulong>(bytesMore[3].AsSpan()).ToArray();
-
-        for (var i = 0; i < ulongArray.Length; i++)
-        {
-            ulong u = ulongArray[i];
-            u |= bm1[i];
-            u |= bm2[i];
-            u |= bm3[i];
-            ulongArray[i] = u;
-        }
-        */
         for (var i = 0; i < bytes00.Length; i++)
         {
             var b = bytes00[i];
