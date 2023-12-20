@@ -507,10 +507,11 @@ internal static class ProgramClass
             //wait for all tasks to complete.
             while (tasks.Count > 0)
             {
-                Console.Write($"Waiting for tasks to complete. {tasks.Count} left.{DateTime.Now}");
-                tasks[0].Wait();
+                Console.WriteLine($"Waiting for tasks to complete. {tasks.Count} left. {DateTime.Now}");
+                _taskLimit = tasks.Count - 1;
                 ManageTasks(tasks);
             }
+            Console.WriteLine($"Tasks to complete. {tasks.Count} left. {DateTime.Now}");
         }
         catch (Exception? ex)
         {
@@ -544,6 +545,7 @@ internal static class ProgramClass
     /// </summary>
     /// <param name="fullDivisorList"></param>
     /// <param name="file"></param>
+    // ReSharper disable once UnusedMember.Local
     private static void Gap0Special(uint[] fullDivisorList, TextWriter file)
     {
         var gapBitArray = new int[338, 35];
@@ -585,7 +587,7 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    ///     updates previous work dictionary 'xd' to by synced with the current files in the system
+    ///     updates previous work dictionary 'xd' to be synced with the current files in the system
     ///     at a cadence (spacing) of GetPreviousWorkCadence.  Then, if needed, recalculates the
     ///     _blockOffset to keep this instance's work separated from other instances.
     /// </summary>
@@ -675,7 +677,7 @@ internal static class ProgramClass
         {
             //byte[] arrayX = SuperFast.InitByteArrayNormal(0xFF, baseArrayUnitSize);
             var arrayX =
-                new byte[baseArrayUnitSize]; //primes and possible primes have bit value of 0, composites have bit value of 1.
+                new byte[baseArrayUnitSize]; //primes and possible primes have a bit value of 0, composites have a bit value of 1.
             arrays.Add(arrayX);
         }
 
@@ -764,6 +766,7 @@ internal static class ProgramClass
 
             // if task.Count < max allowed, return;
             if (tasks.Count < _taskLimit) return;
+            if (tasks.Count == 0) return;
 
             var t0 = tasks[0];
             t0.Wait(200);
@@ -865,6 +868,30 @@ internal static class ProgramClass
             var offsetByte = o / 8;
             var offsetBit = (int)o % 8;
 
+            //It's still possible this optimizes better.(It uses fewer fields and thus just registers more.)
+            /*
+            while (offsetByte < Two28)
+            {
+                //it is quicker to just check the whole byte, and only when available, check the bit.
+                if (bytes0[offsetByte] != 255)
+                {
+                    var bib = (byte)(1 << offsetBit);
+                    //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
+                    if ((bytes0[offsetByte] & bib) == 0)
+                        bytes0[offsetByte] |= bib;
+                }
+
+                offsetByte += primeByte;
+                offsetBit += primeBit;
+
+                if (offsetBit >= 8)
+                {
+                    offsetBit -= 8;
+                    offsetByte++;
+                }
+            }
+            */
+
             //alternate moving p and 2p bits down the array to skip over divisible by 3 bits.
             var primeByteOn = primeByte + primeByte;
             var primeBitOn = primeBit + primeBit;
@@ -890,24 +917,16 @@ internal static class ProgramClass
 
             var onOff = (2 * p + markLoc) % 3 == 0;
 
-            //this is the main loop, this get's all the action.  ~2^32*(0.5*2^32/log(2^32)) entries and ( 2^32*(0.5*(2^32)/log(2^32)) )*( ((2^32)/log(2^32))*(1/2)*(1/3) ) cycles.
+            //this is the main loop, this gets all the action.  ~2^32*(0.5*2^32/log(2^32)) entries and ( 2^32*(0.5*(2^32)/log(2^32)) )*( ((2^32)/log(2^32))*(1/2)*(1/3) ) cycles.
             while (offsetByte < Two28)
             {
-                /*
-                uncomment this to check the onOff (i.e. don't check bits that are divisible by 3)
-                markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
-                if (markLoc % 3 == 0)
-                {
-                    Console.Error.WriteLine($"this should not happen.{p}:{markLoc}:{onOff}");
-                }
-                */
-
                 //it is quicker to just check the whole byte, and only when available, check the bit.
                 if (bytes0[offsetByte] != 255)
                 {
                     var bib = (byte)(1 << offsetBit);
                     //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
-                    if ((bytes0[offsetByte] & bib) == 0) bytes0[offsetByte] |= bib;
+                    if ((bytes0[offsetByte] & bib) == 0)
+                        bytes0[offsetByte] |= bib;
                 }
 
                 if (onOff)
@@ -929,19 +948,6 @@ internal static class ProgramClass
 
                 onOff = !onOff;
             }
-
-            /*
-            var ndp = ((ulong)offsetByte - Two28) * 8 + (ulong)offsetBit;
-            while (ndp > uint.MaxValue)
-            {
-                Console.Error.WriteLine($"Fixed over with {divisorPosition}:prime:{p}:ndp:{ndp}");
-                ndp -= p;
-            }
-
-            if (ndp > uint.MaxValue)
-                Console.Error.WriteLine($"Problem with {divisorPosition}:prime:{p}:ndp:{ndp}");
-            offsets[divisorPosition] = (uint)ndp;
-            */
         }
     }
 
@@ -976,7 +982,7 @@ internal static class ProgramClass
     private static void ProcessThisStuffCompact(uint[] fdl, uint v1, uint v2, string now, uint[] offsets,
         ulong lastCheckedPrime)
     {
-        // process all the primes in segment a.  (a*2^32 -> (a+1)*2^32)
+        // process all the primes in segment.  (a*2^32 -> (a+1)*2^32)
         // ReSharper disable once ArrangeRedundantParentheses
         var gapReportCarryState = new GapReportCarryState
         {
@@ -1026,27 +1032,18 @@ internal static class ProgramClass
 
             if (!_lessRamMemory)
             {
-                //var bytesMores = new byte[4][];
                 var notOffsets = new ulong[4];
                 for (var i = 1; i <= 3; i++)
                 {
-                    //var bytesMore = new byte[Two28];
                     var notOffsetMore = loopMinCheckedValue / 2 % AnvilSizes[i];
                     while (notOffsetMore % 8 != 0)
                         notOffsetMore += AnvilSizes[i];
                     notOffsetMore /= 8;
-                    //Buffer.BlockCopy(Anvils[i], (int)notOffsetMore, bytesMore, 0, (int)Two28);
-                    //bytesMores[i] = bytesMore;
                     notOffsets[i] = notOffsetMore;
                 }
-
-                grl.LoudReportGap("AfterBlockCopies0"); // log how long it takes to put in the blend in anvils.
-                //BlendArrays(bytes00, bytesMores);
-                //GC.Collect();
                 BlendIntoArray(bytes00, notOffsets);
+                grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
             }
-
-            grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
 
             SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, _anvilDivisorPosition, bytes00);
             grl.LoudReportGap("AfterSieve"); // log how long it took to apply the other divisors
@@ -1142,19 +1139,6 @@ internal static class ProgramClass
             b |= Anvils[1][a1 + i];
             b |= Anvils[2][a2 + i];
             b |= Anvils[3][a3 + i];
-            if ((b & bytes00[i]) != 0)
-                bytes00[i] = b;
-        }
-    }
-
-    private static void BlendArrays(byte[] bytes00, byte[][] bytesMore)
-    {
-        for (var i = 0; i < bytes00.Length; i++)
-        {
-            var b = bytes00[i];
-            b |= bytesMore[1][i];
-            b |= bytesMore[2][i];
-            b |= bytesMore[3][i];
             if ((b & bytes00[i]) != 0)
                 bytes00[i] = b;
         }
