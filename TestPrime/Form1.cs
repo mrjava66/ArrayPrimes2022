@@ -25,9 +25,9 @@ public partial class Form1 : Form
         ("806", "171231342420521"),
         ("906", "218209405436543"),
         ("916", "1189459969825483"),
-        ("924","1686994940955803"),
-        ("1132","1693182318746371"),
-        ("1184","43841547845541059"),
+        ("924", "1686994940955803"),
+        ("1132", "1693182318746371"),
+        ("1184", "43841547845541059"),
         ("1510", "6787988999657777797"),
         ("1526", "15570628755536096243"),
         ("1530", "17678654157568189057"),
@@ -35,7 +35,7 @@ public partial class Form1 : Form
         ("450", "8560443932347"),
         ("720", "113377199603617"),
         ("738", "1109480633819771"),
-        ("840", "187891466722493"),
+        ("840", "187891466722493")
     };
 
     private int _dClickLocation = -1;
@@ -73,15 +73,6 @@ public partial class Form1 : Form
             var n1 = textBox1.Text.FixNumber();
             var n2 = textBox2.Text.FixNumber();
             var didStart = ulong.TryParse(n1, out var start);
-            if (!didStart && n1.Length > 7)
-            {
-                var n1a = n1.Substring(0, n1.Length - 7);
-                var n1b = n1.Substring(n1a.Length, 7);
-                var ds1 = ulong.TryParse(n1a, out var s1);
-                var ds2 = ulong.TryParse(n1b, out var s2);
-                if (ds1 && ds2) start = s1 * 1000000 + s2;
-            }
-
             var didLen = ulong.TryParse(n2, out var len);
             if (!didStart || !didLen)
                 throw new Exception("Must Provide Numbers");
@@ -93,6 +84,9 @@ public partial class Form1 : Form
                 if (len % 2 != 0) len++;
             }
 
+            if (start < 2)
+                start = 2;
+
             var end = start + len;
             if (end < start)
                 end = ulong.MaxValue;
@@ -101,10 +95,12 @@ public partial class Form1 : Form
             var lines = new StringBuilder();
             //var firstP = (ulong)Math.Floor(Math.Sqrt(start));
             var lastP = (ulong)Math.Floor(Math.Sqrt(end));
-            var lastP3 =
-                (ulong)Math.Floor(Math.Pow(end,
-                    1.0 / 3.0)); // if first divisible prime is > num^1/3, then value is semi-prime.
+            // if first divisible prime is > num^1/3, then value is semi-prime.
+            var lastP3 = (ulong)Math.Floor(Math.Pow(end + 0.9, 1.0 / 3.0)); 
+            var lastP3X = (ulong)Math.Floor(Math.Pow(start + 0.9, 1.0 / 3.0));
             var somePrimes = _makePrimes.DictAllPrimes;
+            var first = somePrimes.First(x => x.Key > lastP3X).Key;
+            var cubeGap = lastP3 > first;
             var increment = (ulong)(chkEven.Checked ? 1 : 2);
             var dig = chkDig.Checked;
 
@@ -112,9 +108,9 @@ public partial class Form1 : Form
             for (var check = start; check <= end; check += increment)
             {
                 var aCheck = check;
-                var task = Task.Run(() => CheckNumber(aCheck, dig, lastP, lastP3, somePrimes));
+                var task = Task.Run(() => CheckNumber(aCheck, dig, lastP, lastP3, lastP3X, cubeGap, somePrimes));
                 tasks.Add(task);
-                //task.Wait();//uncomment to single thread.
+                //task.Wait(); //uncomment to single thread.
                 if (check == ulong.MaxValue)
                     break;
             }
@@ -155,16 +151,16 @@ public partial class Form1 : Form
                 richTextBox.Select(startPos, line.Length);
                 if (line.Contains(KnownPrime))
                 {
-                    richTextBox.SelectionBackColor = Color.DarkGreen;
+                    richTextBox.SelectionBackColor = Color.Blue;
                     richTextBox.SelectionColor = Color.White;
                 }
                 else if (line.Contains(Lfsp))
                 {
-                    richTextBox.SelectionBackColor = Color.GreenYellow;
+                    richTextBox.SelectionBackColor = Color.Green;
                 }
                 else if (line.Contains(Sfsp))
                 {
-                    richTextBox.SelectionBackColor = Color.DarkSeaGreen;
+                    richTextBox.SelectionBackColor = Color.GreenYellow;
                 }
                 else if (line.Contains(Nff))
                 {
@@ -200,7 +196,8 @@ public partial class Form1 : Form
             }
     }
 
-    private string CheckNumber(ulong checkVal, bool dig, ulong lastP0, ulong lastP3,
+    private string CheckNumber(ulong checkVal, bool dig,
+        ulong lastP0, ulong lastP3, ulong lastP3X, bool cubeGap,
         Dictionary<ulong, ulong> somePrimes)
     {
         var lastP = lastP0;
@@ -262,6 +259,10 @@ public partial class Form1 : Form
 
         line.Append($"{checkVal}:");
 
+        //need your own P3
+        if (cubeGap && factors0 >= lastP3X && factors0 < lastP3)
+            lastP3 = (ulong)Math.Floor(Math.Pow(checkVal + 0.9, 1.0 / 3.0));
+
         if (factorsCount == 0)
         {
             //oops.
@@ -272,7 +273,7 @@ public partial class Form1 : Form
             //prime
             line.Append($"{KnownPrime}");
         }
-        else if (factors0 >= lastP3)
+        else if (factors0 > lastP3)
         {
             line.Append($"{Lfsp}");
         }
