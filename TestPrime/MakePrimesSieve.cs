@@ -20,7 +20,7 @@ public class MakePrimesSieve : IMakePrimes
     {
         get
         {
-            while (_dictAllPrimes == null) 
+            while (_dictAllPrimes == null)
                 MakePrimesTask();
 
             return _dictAllPrimes;

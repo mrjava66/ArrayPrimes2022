@@ -96,7 +96,7 @@ public partial class Form1 : Form
             //var firstP = (ulong)Math.Floor(Math.Sqrt(start));
             var lastP = (ulong)Math.Floor(Math.Sqrt(end));
             // if first divisible prime is > num^1/3, then value is semi-prime.
-            var lastP3 = (ulong)Math.Floor(Math.Pow(end + 0.9, 1.0 / 3.0)); 
+            var lastP3 = (ulong)Math.Floor(Math.Pow(end + 0.9, 1.0 / 3.0));
             var lastP3X = (ulong)Math.Floor(Math.Pow(start + 0.9, 1.0 / 3.0));
             var somePrimes = _makePrimes.DictAllPrimes;
             var first = somePrimes.First(x => x.Key > lastP3X).Key;
@@ -120,7 +120,7 @@ public partial class Form1 : Form
             var delta = 3;
             foreach (var task in tasks)
             {
-                //every few seconds do a ade.
+                //every few seconds do an application.doEvents.
                 if ((DateTime.Now - screenHold).TotalSeconds > delta)
                 {
                     screenHold = DateTime.Now;

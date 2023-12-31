@@ -51,25 +51,27 @@ public class MakePrimesEnum : IMakePrimes
             var j = Math.Sqrt(i);
             foreach (var k in AllPrimes())
             {
+                //if var-i is evenly divisible by k, this is not a prime, check the next number.
                 if (i % k == 0)
-                    //if i is evenly divisible by k, this is not a prime, check the next number.
                     break;
-                if (k > j)
-                {
-                    //if none of primes less than the square root of i are evenly divisible, this is a prime.
-                    try
-                    {
-                        ListAllPrimes.Add(i);
-                    }
-                    catch (Exception)
-                    {
-                        yield break;
-                        //Console.WriteLine(e);
-                    }
 
-                    yield return i;
-                    break;
+                //if this k<sqrt(i), check next prime.
+                if (k < j) 
+                    continue;
+
+                //if none of primes less than the square root of i are evenly divisible, this is a prime.
+                try
+                {
+                    ListAllPrimes.Add(i);
                 }
+                catch (Exception)
+                {
+                    yield break;
+                    //Console.WriteLine(e);
+                }
+
+                yield return i;
+                break;
             }
         }
         //there is no last prime.
