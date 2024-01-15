@@ -1,4 +1,5 @@
 ﻿using System.Configuration;
+using System.Reflection;
 
 namespace ArrayPrimes2022;
 
@@ -144,77 +145,6 @@ internal static class ProgramClass
         _anvilDivisorPosition = 20;
     }
 
-    /*
-    private static void BuildAnvilNew(int[] dl)
-    {
-        {
-            // three works differently.  this reduces the number of memory writes to 3/8 of what 3 normally does.  Also, the memory reads are not needed.
-            // ReSharper disable InconsistentNaming
-            const byte byte3_0 = (1 << 0) + (1 << 3) + (1 << 6);
-            const byte byte3_1 = (1 << 1) + (1 << 4) + (1 << 7);
-            const byte byte3_2 = (1 << 2) + (1 << 5);
-            // ReSharper restore InconsistentNaming
-            byte[] byte3 = { byte3_0, byte3_1, byte3_2 };
-            ulong oByte = 0;
-            var obit = 1;
-
-            while (oByte < FullAnvilSize)
-            {
-                Anvil[oByte] = byte3[obit];
-                obit++;
-                if (obit > 2) obit = 0;
-                oByte++;
-            }
-        }
-
-        {
-            // five works differently.  this reduces the number of memory writes to 5/8 of what 5 normally does.
-            // ReSharper disable InconsistentNaming
-            const byte byte5_0 = (1 << 0) + (1 << 5);
-            const byte byte5_1 = (1 << 1) + (1 << 6);
-            const byte byte5_2 = (1 << 2) + (1 << 7);
-            const byte byte5_3 = 1 << 3;
-            const byte byte5_4 = 1 << 4;
-            // ReSharper restore InconsistentNaming
-            byte[] byte5 = { byte5_0, byte5_1, byte5_2, byte5_3, byte5_4 };
-            ulong oByte = 0;
-            var obit = 2;
-
-            while (oByte < FullAnvilSize)
-            {
-                Anvil[oByte] |= byte5[obit];
-                obit += 2;
-                if (obit > 4) obit -= 5;
-                oByte++;
-            }
-        }
-
-        //2 is not processed, 3&5 are already processed, just apply 7 and up.
-        for (var divisorPosition = 3; divisorPosition < dl.Length; divisorPosition++)
-        {
-            var p = dl[divisorPosition];
-            var primeByte = (ulong)p / 8;
-            var primeBit = p % 8;
-            var offsetByte = (ulong)0;
-            var offsetBit = 0;
-
-            while (offsetByte < FullAnvilSize)
-            {
-                var bib = (byte)(1 << offsetBit);
-
-                if ((Anvil[offsetByte] & bib) == 0)
-                    Anvil[offsetByte] |= bib;
-
-                offsetByte += primeByte;
-                offsetBit += primeBit;
-                if (offsetBit < 8) continue;
-                offsetBit -= 8;
-                offsetByte++;
-            }
-        }
-    }
-    */
-
     private static (byte[], ulong) BuildAnAnvil(int[] dl, int start, int end)
     {
         ulong divisorSize = 1;
@@ -349,8 +279,10 @@ internal static class ProgramClass
             Console.Error.WriteLine(e.Message);
         }
 
+        var linkTimeLocal = Assembly.GetExecutingAssembly().GetLinkerTime();
+
         var quickCheckReport = string.IsNullOrWhiteSpace(_quickCheck) ? "_blank_" : _quickCheck;
-        Console.WriteLine($"BigArray={BigArray},GetPreviousWork={_getPreviousWork},LessRamMemory={_lessRamMemory},basePath={_basePath},{Environment.NewLine}" +
+        Console.WriteLine($"BuildDate={linkTimeLocal},BigArray={BigArray},GetPreviousWork={_getPreviousWork},LessRamMemory={_lessRamMemory},basePath={_basePath},{Environment.NewLine}" +
                           $"TaskLimit={_taskLimit},BlockOrder={blockOrder};{_runAllBlocksInOrder},QuickCheck={quickCheckReport},{Environment.NewLine}" +
                           $"Reverse={_reverse},BlockOffset={_blockOffset}");
 
@@ -1217,12 +1149,33 @@ internal static class ProgramClass
     }
 }
 
-public class PrimeDivisor
+public static class LinkTime
 {
-    public ulong Prime { get; set; }
-    public uint PrimeByte { get; set; }
-    public byte PrimeBit { get; set; }
+    public static DateTime GetLinkerTime(this Assembly assembly
+        , TimeZoneInfo? target = null)
+    {
+        var filePath = assembly.Location;
+        const int cPeHeaderOffset = 60;
+        const int cLinkerTimestampOffset = 8;
 
-    public uint Prime2Byte { get; set; }
-    public byte Prime2Bit { get; set; }
+        var buffer = new byte[2048];
+        int read;
+
+        using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+            read = stream.Read(buffer, 0, 2048);
+
+        if (read<2048)
+            return DateTime.MinValue;
+
+        var offset = BitConverter.ToInt32(buffer, cPeHeaderOffset);
+        var secondsSince1970 = BitConverter.ToInt32(buffer, offset + cLinkerTimestampOffset);
+        var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var linkTimeUtc = epoch.AddSeconds(secondsSince1970);
+
+        var tz = target ?? TimeZoneInfo.Local;
+        var localTime = TimeZoneInfo.ConvertTimeFromUtc(linkTimeUtc, tz);
+
+        return localTime;
+    }
 }

@@ -136,12 +136,14 @@ internal static class ProgramClass
             ulong twinSum = 0;
             ulong sixSum = 0;
             ulong thirtySum = 0;
+            ulong twoTenSum = 0;
             ulong lastBlock = 0;
             var bits = 33;
             ulong lastPrime = 0;
             var splits2 = new StringBuilder();
             var splits6 = new StringBuilder();
             var splits30 = new StringBuilder();
+            var splits210 = new StringBuilder();
             foreach (var val in _allLastPrimeRows.Skip(1))
             {
                 var block = (val.StartPrime - blockNumberFix) / uint.MaxValue;
@@ -151,8 +153,8 @@ internal static class ProgramClass
 
                 sum += val.GapSize;
                 IncrementTwinTotals(folder, block, lastPrime
-                    , splits2, splits6, splits30
-                    , ref twinSum, ref sixSum, ref thirtySum);
+                    , splits2, splits6, splits30, splits210
+                    , ref twinSum, ref sixSum, ref thirtySum, ref twoTenSum);
 
                 level++;
                 if (level == levelEnough)
@@ -165,6 +167,8 @@ internal static class ProgramClass
                         sixSum = 0;
                         Console.WriteLine($"Gap30,{bits},{thirtySum},{level}");
                         thirtySum = 0;
+                        Console.WriteLine($"Gp210,{bits},{twoTenSum},{level}");
+                        twoTenSum = 0;
                     }
 
                     Console.WriteLine($"Total,{bits},{sum},{level}");
@@ -180,6 +184,7 @@ internal static class ProgramClass
             Console.Write(splits2);
             Console.Write(splits6);
             Console.Write(splits30);
+            Console.Write(splits210);
             _allLastPrimeRows.Clear();
             GC.Collect();
 
@@ -294,8 +299,10 @@ internal static class ProgramClass
         }
     }
 
-    private static void IncrementTwinTotals(string folder, ulong block, ulong lastPrime, StringBuilder splits2,
-        StringBuilder splits6, StringBuilder splits30, ref ulong twinSum, ref ulong sixSum, ref ulong thirtySum)
+    private static void IncrementTwinTotals(string folder, ulong block, ulong lastPrime
+        , StringBuilder splits2, StringBuilder splits6, StringBuilder splits30, StringBuilder splits210
+        , ref ulong twinSum, ref ulong sixSum, ref ulong thirtySum, ref ulong twoTenSum
+        )
     {
         if (!TwinTotals)
             return;
@@ -318,6 +325,7 @@ internal static class ProgramClass
             var line2 = "";
             var line6 = "";
             var line30 = "";
+            var line210 = "";
             var reader = File.ReadLines(aFile);
 
             foreach (var aline in reader)
@@ -347,6 +355,10 @@ internal static class ProgramClass
 
                         case 30:
                             line30 = aline;
+                            break;
+
+                        case 210:
+                            line210 = aline;
                             exit = true;
                             break;
                     }
@@ -363,8 +375,10 @@ internal static class ProgramClass
             reader = null;
 
             if (string.IsNullOrWhiteSpace(line2) 
-                || string.IsNullOrWhiteSpace(line6) 
-                || string.IsNullOrWhiteSpace(line30))
+                || string.IsNullOrWhiteSpace(line6)
+                || string.IsNullOrWhiteSpace(line30)
+                || string.IsNullOrWhiteSpace(line210)
+                )
             {
                 TwinTotals = false;
                 return;
@@ -373,6 +387,7 @@ internal static class ProgramClass
             ulong extra2 = 0;
             ulong extra6 = 0;
             ulong extra30 = 0;
+            ulong extra210 = 0;
             ulong thisPrime = 0;
             ulong thisGap = 0;
             if (foundOddGap)
@@ -409,11 +424,17 @@ internal static class ProgramClass
                     splits30.AppendLine($"Split 30-Prime  ,{block},{aFile}");
                     extra30 = 1;
                 }
+                else if (gap == 210)
+                {
+                    splits210.AppendLine($"Split210-Prime  ,{block},{aFile}");
+                    extra210 = 1;
+                }
             }
 
             SplitAndSum(line2, ref twinSum, extra2);
             SplitAndSum(line6, ref sixSum, extra6);
             SplitAndSum(line30, ref thirtySum, extra30);
+            SplitAndSum(line210, ref twoTenSum, extra210);
         }
         catch (Exception e)
         {
