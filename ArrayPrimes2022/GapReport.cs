@@ -9,26 +9,18 @@ public class GapReportCarryState
     public ulong LastPrime { get; set; }
 }
 
-public class GapReport
+public class GapReport(GapReportCarryState gapReportCarryState)
 {
-    private readonly StringBuilder _gapFileBuilder;
+    private readonly StringBuilder _gapFileBuilder = new();
     private readonly int[,] _gapFound = new int[3, 2000];
     private readonly int[,] _gapGrid = new int[780, 780];
     private readonly int[,] _gapRepeatFound = new int[11, 2000];
 
     private readonly DateTime _startTime = DateTime.Now;
-    private int _gapRepeat;
-    private ulong _lastGap;
-    private ulong _lastPrimeNum;
+    private int _gapRepeat = gapReportCarryState.GapRepeat;
+    private ulong _lastGap = gapReportCarryState.LastGap;
+    private ulong _lastPrimeNum = gapReportCarryState.LastPrime;
     private ulong _primeCount;
-
-    public GapReport(GapReportCarryState gapReportCarryState)
-    {
-        _lastGap = gapReportCarryState.LastGap;
-        _gapRepeat = gapReportCarryState.GapRepeat;
-        _lastPrimeNum = gapReportCarryState.LastPrime;
-        _gapFileBuilder = new StringBuilder();
-    }
 
     public GapReportCarryState State => new() { GapRepeat = _gapRepeat, LastGap = _lastGap, LastPrime = _lastPrimeNum };
 

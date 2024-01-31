@@ -282,11 +282,16 @@ internal static class ProgramClass
         var linkTimeLocal = Assembly.GetExecutingAssembly().GetLinkerTime();
 
         var quickCheckReport = string.IsNullOrWhiteSpace(_quickCheck) ? "_blank_" : _quickCheck;
-        Console.WriteLine($"BuildDate={linkTimeLocal},BigArray={BigArray},GetPreviousWork={_getPreviousWork},LessRamMemory={_lessRamMemory},basePath={_basePath},{Environment.NewLine}" +
-                          $"TaskLimit={_taskLimit},BlockOrder={blockOrder};{_runAllBlocksInOrder},QuickCheck={quickCheckReport},{Environment.NewLine}" +
-                          $"Reverse={_reverse},BlockOffset={_blockOffset}");
-
-
+        Console.WriteLine($"BuildDate={linkTimeLocal},\n" +
+                          $"BigArray={BigArray},\n" +
+                          $"GetPreviousWork={_getPreviousWork},\n" +
+                          $"LessRamMemory={_lessRamMemory},\n" +
+                          $"basePath={_basePath},\n" +
+                          $"TaskLimit={_taskLimit},\n" +
+                          $"BlockOrder={blockOrder},RunBlocksInOrder={_runAllBlocksInOrder},\n" +
+                          $"QuickCheck={quickCheckReport},\n" +
+                          $"Reverse={_reverse},\n" +
+                          $"BlockOffset={_blockOffset}");
     }
 
     private static Dictionary<uint, bool> GetPreviousWork()
@@ -303,8 +308,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-                where f.EndsWith("log") && f.Contains("\\GapArray.")
-                select f;
+            where f.EndsWith("log") && f.Contains("\\GapArray.")
+            select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -443,6 +448,7 @@ internal static class ProgramClass
                 _taskLimit = tasks.Count - 1;
                 ManageTasks(tasks);
             }
+
             Console.WriteLine($"Tasks to complete. {tasks.Count} left. {DateTime.Now}");
         }
         catch (Exception? ex)
@@ -461,14 +467,34 @@ internal static class ProgramClass
         {
             var mConfiguration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             var value = mConfiguration.AppSettings.Settings["Stop"];
-            var didValue = bool.TryParse(value.Value, out bool valueBool);
+            var didValue = bool.TryParse(value.Value, out var valueBool);
             if (didValue && valueBool)
                 return true;
+            var values = mConfiguration.AppSettings.Settings["Stops"].Value;
+            var valueArray = values.Split(';');
+            var me = Environment.MachineName.ToLower() + ",";
+            foreach (var xValue in valueArray)
+            {
+                if (string.IsNullOrWhiteSpace(xValue))
+                    continue;
+                if (xValue.ToLower().StartsWith(me))
+                {
+                    var xValues = xValue.Split(",");
+                    var off = xValues[1];
+                    var on = xValues[2];
+                    var didOff = int.TryParse(off, out var offInt);
+                    var didOn = int.TryParse(on, out var onInt);
+                    if (didOff && didOn)
+                        if (offInt <= DateTime.Now.Hour && DateTime.Now.Hour <= onInt)
+                            return true;
+                }
+            }
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
         }
+
         return false;
     }
 
@@ -631,24 +657,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
+        {
+            if (arrays[a][l] == 255) continue;
+            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
             {
-                if (arrays[a][l] == 255) continue;
-                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
-                {
-                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                    fdl[++countPrimeNumber] = (uint)prime;
+                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                fdl[++countPrimeNumber] = (uint)prime;
 
-                    gr.ReportGap(prime);
+                gr.ReportGap(prime);
 
-                    //outfile.WriteLine(prime);
-                    // don't need to sieve values greater than top.
-                    if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
-                }
+                //outfile.WriteLine(prime);
+                // don't need to sieve values greater than top.
+                if (prime < sieveTop)
+                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
             }
+        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "0\\0\\GapPrimes.0." + now + ".log", false);
@@ -973,6 +999,7 @@ internal static class ProgramClass
                     notOffsetMore /= 8;
                     notOffsets[i] = notOffsetMore;
                 }
+
                 BlendIntoArray(bytes00, notOffsets);
                 grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
             }
@@ -1058,10 +1085,12 @@ internal static class ProgramClass
             if (notOffsets[j] + Two28 > int.MaxValue)
                 throw new Exception($"Cannot work with offset0,{j},{notOffsets[j]}");
             if ((long)notOffsets[j] + bytes00.LongLength > Anvils[j].LongLength)
-                throw new Exception($"Cannot work with offset1,{j},{notOffsets[j]},{bytes00.LongLength},{Anvils[j].LongLength}");
+                throw new Exception(
+                    $"Cannot work with offset1,{j},{notOffsets[j]},{bytes00.LongLength},{Anvils[j].LongLength}");
             if (notOffsets[j] > AnvilSizes[j])
                 throw new Exception($"Cannot work with offset2,{notOffsets[j]},{AnvilSizes[j]}");
         }
+
         var a1 = (int)notOffsets[1];
         var a2 = (int)notOffsets[2];
         var a3 = (int)notOffsets[3];
@@ -1162,9 +1191,11 @@ public static class LinkTime
         int read;
 
         using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+        {
             read = stream.Read(buffer, 0, 2048);
+        }
 
-        if (read<2048)
+        if (read < 2048)
             return DateTime.MinValue;
 
         var offset = BitConverter.ToInt32(buffer, cPeHeaderOffset);
