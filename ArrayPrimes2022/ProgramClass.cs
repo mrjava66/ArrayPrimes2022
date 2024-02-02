@@ -308,8 +308,8 @@ internal static class ProgramClass
         if (string.IsNullOrWhiteSpace(_basePath))
             _basePath = Directory.GetCurrentDirectory();
         var x = from f in Directory.EnumerateFiles(_basePath, "*.log", SearchOption.AllDirectories)
-            where f.EndsWith("log") && f.Contains("\\GapArray.")
-            select f;
+                where f.EndsWith("log") && f.Contains("\\GapArray.")
+                select f;
         var xl = x.ToList();
 
         foreach (var xx in xl)
@@ -468,26 +468,44 @@ internal static class ProgramClass
             var mConfiguration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             var value = mConfiguration.AppSettings.Settings["Stop"];
             var didValue = bool.TryParse(value.Value, out var valueBool);
+            if (!didValue)
+                Console.WriteLine("Could not read 'Stop' value.");
             if (didValue && valueBool)
                 return true;
             var values = mConfiguration.AppSettings.Settings["Stops"].Value;
+            if (string.IsNullOrWhiteSpace(values))
+            {
+                Console.WriteLine("Could not read 'Stops' value.");
+                return false;
+            }
             var valueArray = values.Split(';');
+            if (valueArray.Length == 0)
+            {
+                Console.WriteLine("Could not parse 'Stops' value.");
+                return false;
+            }
             var me = Environment.MachineName.ToLower() + ",";
             foreach (var xValue in valueArray)
             {
                 if (string.IsNullOrWhiteSpace(xValue))
                     continue;
-                if (xValue.ToLower().StartsWith(me))
-                {
-                    var xValues = xValue.Split(",");
-                    var off = xValues[1];
-                    var on = xValues[2];
-                    var didOff = int.TryParse(off, out var offInt);
-                    var didOn = int.TryParse(on, out var onInt);
-                    if (didOff && didOn)
+                if (!xValue.ToLower().StartsWith(me))
+                    continue;
+                var xValues = xValue.Split(",");
+
+                var off = xValues[1];
+                var on = xValues[2];
+                var offDay = xValues[3];
+                var onDay = xValues[4];
+
+                var didOff = int.TryParse(off, out var offInt);
+                var didOn = int.TryParse(on, out var onInt);
+                var didOffDay = int.TryParse(offDay, out var offDayInt);
+                var didOnDay = int.TryParse(onDay, out var onDayInt);
+                if (didOff && didOn && didOffDay && didOnDay)
+                    if (offDayInt <= (int)DateTime.Now.DayOfWeek && (int)DateTime.Now.DayOfWeek <= onDayInt)
                         if (offInt <= DateTime.Now.Hour && DateTime.Now.Hour <= onInt)
                             return true;
-                }
             }
         }
         catch (Exception e)
@@ -657,24 +675,24 @@ internal static class ProgramClass
 
         ulong prime = 0;
         for (var a = 0; a < baseArrayCount; a++)
-        for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
-        {
-            if (arrays[a][l] == 255) continue;
-            for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+            for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
             {
-                if (IsBitSet(arrays[a][l], (int)pos)) continue;
+                if (arrays[a][l] == 255) continue;
+                for (ulong pos = 0; pos < 8; pos++) // only check odd for prime.
+                {
+                    if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
-                prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
-                fdl[++countPrimeNumber] = (uint)prime;
+                    prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                    fdl[++countPrimeNumber] = (uint)prime;
 
-                gr.ReportGap(prime);
+                    gr.ReportGap(prime);
 
-                //outfile.WriteLine(prime);
-                // don't need to sieve values greater than top.
-                if (prime < sieveTop)
-                    StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
+                    //outfile.WriteLine(prime);
+                    // don't need to sieve values greater than top.
+                    if (prime < sieveTop)
+                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
+                }
             }
-        }
 
         gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "0\\0\\GapPrimes.0." + now + ".log", false);
