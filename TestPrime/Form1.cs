@@ -355,4 +355,40 @@ public partial class Form1 : Form
     private void textBox1_TextChanged(object sender, EventArgs e)
     {
     }
+
+    private void button3_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            var checkedP=0;
+            if (_makePrimes == null)
+                throw new Exception("_makePrimes needs a value.");
+
+            var array = _makePrimes.ArrayAllPrimes;
+            var dict = _makePrimes.DictAllPrimes;
+            var lastPrime = array[0];
+            foreach (var prime in array)
+            {
+                if (prime - lastPrime == 2)
+                {
+                    checkedP++;
+                    var mid = (prime - 1)/2;
+                    if (mid < 4)
+                        continue;
+                    if (dict.ContainsKey(mid))
+                    {
+                        MessageBox.Show($@"Found Twin with semi {mid}");
+                        break;
+                    }
+                }
+                lastPrime = prime;
+            }
+
+            MessageBox.Show($@"Checked = {checkedP}, found=0");
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(exception.Message);
+        }
+    }
 }

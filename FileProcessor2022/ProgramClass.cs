@@ -374,7 +374,7 @@ internal static class ProgramClass
             // ReSharper disable once RedundantAssignment
             reader = null;
 
-            if (string.IsNullOrWhiteSpace(line2) 
+            if (string.IsNullOrWhiteSpace(line2)
                 || string.IsNullOrWhiteSpace(line6)
                 || string.IsNullOrWhiteSpace(line30)
                 || string.IsNullOrWhiteSpace(line210)
@@ -764,8 +764,8 @@ internal static class ProgramClass
             tasks = null;
             allFileRows = allFileRows.OrderBy(s => s).ToList();
 
-            var outfileRows = new List<string>();
-            var lastRow = ",,,,";
+            List<string> outfileRows = new List<string>();
+            string lastRow = ",,,,";
             var lastRowArray = lastRow.Split(",");
             foreach (var thisRow in allFileRows)
             {
@@ -779,7 +779,7 @@ internal static class ProgramClass
                 }
                 else if (lastRowArray[0] == "LastPrime")
                 {
-                    outfileRows.Add(lastRow);
+                    outfileRows.AddIfNew(lastRow);
                 }
                 else if (OddFirst(lastRowArray))
                 {
@@ -816,6 +816,18 @@ internal static class ProgramClass
         catch (Exception e)
         {
             Console.Error.WriteLine(e);
+        }
+    }
+
+    public static void AddIfNew(this List<string> list, string s)
+    {
+        if (list.Count == 0)
+        {
+            list.Add(s);
+        }
+        else if (list[^1]!=s)
+        {
+            list.Add(s);
         }
     }
 

@@ -38,6 +38,7 @@
             richTextBox1 = new RichTextBox();
             chkDig = new CheckBox();
             chkEven = new CheckBox();
+            button3 = new Button();
             SuspendLayout();
             // 
             // textBox1
@@ -54,7 +55,7 @@
             // label1
             // 
             label1.AutoSize = true;
-            label1.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point);
+            label1.Font = new Font("Segoe UI", 18F);
             label1.Location = new Point(12, 9);
             label1.Name = "label1";
             label1.Size = new Size(62, 32);
@@ -64,7 +65,7 @@
             // label2
             // 
             label2.AutoSize = true;
-            label2.Font = new Font("Segoe UI", 18F, FontStyle.Regular, GraphicsUnit.Point);
+            label2.Font = new Font("Segoe UI", 18F);
             label2.Location = new Point(12, 54);
             label2.Name = "label2";
             label2.Size = new Size(52, 32);
@@ -140,11 +141,22 @@
             chkEven.Text = "Evens";
             chkEven.UseVisualStyleBackColor = true;
             // 
+            // button3
+            // 
+            button3.Location = new Point(12, 265);
+            button3.Name = "button3";
+            button3.Size = new Size(75, 23);
+            button3.TabIndex = 12;
+            button3.Text = "TwinSemi";
+            button3.UseVisualStyleBackColor = true;
+            button3.Click += button3_Click;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(button3);
             Controls.Add(chkEven);
             Controls.Add(chkDig);
             Controls.Add(richTextBox1);
@@ -173,5 +185,6 @@
         private RichTextBox richTextBox1;
         private CheckBox chkDig;
         private CheckBox chkEven;
+        private Button button3;
     }
 }

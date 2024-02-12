@@ -27,11 +27,9 @@ internal static class ProgramClass
     private static readonly TimeSpan StartTimeSpacing = TimeSpan.FromMilliseconds(3600);
 
     /// <summary>
-    ///     the array that holds all the possible arrangements of the first 8 divisors that we will need.
-    ///     future work will allow this to cover the next 5.
+    ///     the arrays that holds all the possible arrangements of the first 7-21 divisors that we will need.
     /// </summary>
     private static readonly List<byte[]> Anvils = new();
-
     private static readonly List<ulong> AnvilSizes = new();
     private static uint _anvilDivisorPosition = 20;
 
