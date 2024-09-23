@@ -18,5 +18,4 @@ internal class RepRowFormat : RowFormat
 internal class GapRowFormat : RowFormat
 {
     //public string? Primes { get; set; }
-
 }

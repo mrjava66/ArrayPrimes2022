@@ -2,7 +2,7 @@ namespace TestPrime;
 
 public class MakePrimesSieve : IMakePrimes
 {
-    private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5, 7 };
+    private static readonly List<ulong> ListAllPrimes = [2, 3, 5, 7];
 
     private Dictionary<ulong, ulong>? _dictAllPrimes;
 
@@ -48,7 +48,7 @@ public class MakePrimesSieve : IMakePrimes
         {
             //byte[] arrayX = SuperFast.InitByteArrayNormal(0xFF, baseArrayUnitSize);
             var arrayX =
-                new byte[baseArrayUnitSize]; //primes and possible primes have bit value of 0, composites have bit value of 1.
+                new byte[baseArrayUnitSize]; //primes and possible primes have a bit value of 0, composites have a bit value of 1.
             arrays.Add(arrayX);
         }
 

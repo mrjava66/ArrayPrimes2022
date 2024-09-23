@@ -1005,7 +1005,7 @@ internal static class ProgramClass
 
     private static (List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>) ProcessFileLines(string file)
     {
-        //Console.WriteLine("Reading From '" + file + "'");
+        //Console.WriteLine($"Reading From '{file}'");
         var gapRows = new List<GapRowFormat>();
         var repRows = new List<RepRowFormat>();
         var rows = new List<RowFormat>();

@@ -2,7 +2,7 @@ namespace TestPrime;
 
 public class MakePrimesEnum : IMakePrimes
 {
-    private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5 };
+    private static readonly List<ulong> ListAllPrimes = [2, 3, 5];
 
     public ulong[] ArrayAllPrimes => ListAllPrimes.ToArray();
     public Dictionary<ulong, ulong> DictAllPrimes => ArrayAllPrimes.ToDictionary(x => x, x => x);
@@ -45,9 +45,11 @@ public class MakePrimesEnum : IMakePrimes
     {
         foreach (var prime in ListAllPrimes) yield return prime;
         var i = ListAllPrimes[^1];
+        var twoFour = ((i + 2) % 3) == 0; //false=add by 2, true=add by 4, for next number to check for prime
         while (true)
         {
-            i++;
+            i += twoFour ? (ulong)4 : 2;
+            twoFour = !twoFour;
             var j = Math.Sqrt(i);
             foreach (var k in AllPrimes())
             {
@@ -56,7 +58,7 @@ public class MakePrimesEnum : IMakePrimes
                     break;
 
                 //if this k<sqrt(i), check next prime.
-                if (k < j) 
+                if (k < j)
                     continue;
 
                 //if none of primes less than the square root of i are evenly divisible, this is a prime.

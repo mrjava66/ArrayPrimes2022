@@ -49,8 +49,8 @@ internal static class ProgramClass
     // List of Blocks of 128*Two32 numbers (1/2T) that contain a first gap.
     // This list REQUIRES a block size of 128 to be correct.
     // ReSharper disable once ArrangeObjectCreationWhenTypeEvident
-    private static readonly List<uint> Guided = new List<uint>
-    {
+    private static readonly List<uint> Guided =
+    [
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 20, 22,
         23, 24, 25, 27, 28, 31, 32, 33, 35, 37, 40, 42, 43, 45, 48, 51, 54, 61,
         62, 64, 69, 70, 72, 75, 77, 79, 83, 85, 86, 90, 92, 99, 104, 108, 112,
@@ -95,7 +95,7 @@ internal static class ProgramClass
         17565834, 17841192, 18161148, 18378515, 20451136, 20576488, 20592223,
         21093154, 23075546, 23998453, 24578845, 24617240, 27194278, 27595883,
         28322808, 30837039, 31821539, 31931132, 32157284, 33399147
-    };
+    ];
 
     private static readonly TimeSpan GetPreviousWorkCadence = new(1, 0, 0);
     private static DateTime _getPreviousWorkTime = DateTime.Now + GetPreviousWorkCadence;
