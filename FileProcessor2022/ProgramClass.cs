@@ -5,7 +5,7 @@ namespace FileProcessor2022;
 
 internal static class ProgramClass
 {
-    private const ulong Two32 = (ulong)uint.MaxValue + 1; //read as 2 to the 32
+    //private const ulong Two32 = (ulong)uint.MaxValue + 1; //read as 2 to the 32
     private const decimal SecondsPerDay = 3600 * 24;
 
     private static readonly Dictionary<uint, GapRowFormat> AllGapRows = new();
@@ -566,6 +566,8 @@ internal static class ProgramClass
 
         files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
 
+        files = TrimForSummaries(files, false);
+
         var didMove = false;
         uint group = 0;
         uint groupPos = 0;
@@ -618,7 +620,10 @@ internal static class ProgramClass
                             var summaryFileName = fileMask.Replace("*", $"{start}_{end}");
                             var summaryFilePath = groupFiles[0].Substring(0, ls2) + "\\" + summaryFileName;
                             if (!File.Exists(summaryFilePath))
+                            {
                                 CreateSummaryFile(groupFiles, summaryFilePath);
+                                didMove = true;
+                            }
                             //Console.WriteLine($"Zip {sourceDirectoryName} {destinationArchiveFileName}");
                             //ZipFile.CreateFromDirectory(sourceDirectoryName, destinationArchiveFileName, CompressionLevel.SmallestSize, false);
                             //?todo remove old
@@ -658,12 +663,12 @@ internal static class ProgramClass
         if (didMove)
             files = Directory.GetFiles(folder, fileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
 
-        files = TrimForSummaries(files);
+        files = TrimForSummaries(files, true);
 
         return files;
     }
 
-    private static string[] TrimForSummaries(string[] files)
+    private static string[] TrimForSummaries(string[] files, bool testForGap)
     {
         var summaryDictionary = new Dictionary<uint, bool>();
         foreach (var file in files)
@@ -702,6 +707,24 @@ internal static class ProgramClass
                 summaryDictionary.TryAdd(i, true);
         }
 
+        if (testForGap)
+        {
+            //test summary dictionary
+            var orderedKeys = summaryDictionary.Keys.OrderBy(x => x);
+            var lastKey = uint.MaxValue;
+            foreach (var key in orderedKeys)
+            {
+                if (lastKey + 1 != key)
+                {
+                    var errMsg = $"Missing Summary in range {lastKey / 1024}:{lastKey}::{key / 1024}:{key}";
+                    Console.WriteLine(errMsg);
+                    Console.Error.WriteLine(errMsg);
+                }
+
+                lastKey = key;
+            }
+        }
+
         var filesList = files.ToList();
         var noFileList = new List<string>();
         foreach (var file in filesList)
@@ -735,6 +758,11 @@ internal static class ProgramClass
         return filesList.ToArray();
     }
 
+    /// <summary>
+    /// Assembles a list of LastPrime files into a summary file.
+    /// </summary>
+    /// <param name="groupFiles"></param>
+    /// <param name="summaryFilePath"></param>
     private static void CreateSummaryFile(List<string> groupFiles, string summaryFilePath)
     {
         try
@@ -819,18 +847,29 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Adds a string to a string list if the list does not end with the same string.
+    /// </summary>
+    /// <param name="list"></param>
+    /// <param name="s"></param>
     public static void AddIfNew(this List<string> list, string s)
     {
         if (list.Count == 0)
         {
             list.Add(s);
         }
-        else if (list[^1]!=s)
+        else if (list[^1] != s)
         {
             list.Add(s);
         }
     }
 
+    /// <summary>
+    /// If the string array starts with a 1st gap that is even, return true
+    /// i.e. the first gap is odd length
+    /// </summary>
+    /// <param name="lastRowArray"></param>
+    /// <returns></returns>
     private static bool OddFirst(string[] lastRowArray)
     {
         if (lastRowArray.Length < 3)
@@ -839,12 +878,19 @@ internal static class ProgramClass
         if (lastRowArray[0] == "1st Gap" && lastRowArray[2] == "Primes")
         {
             var didGap = uint.TryParse(lastRowArray[1], out var gap);
-            if (didGap && gap % 2 == 1) return true;
+            if (didGap && gap % 2 == 1)
+                return true;
         }
 
         return false;
     }
 
+    /// <summary>
+    /// Returns true if passed two string arrays with 4 or more items where the first three strings in each array are equal
+    /// </summary>
+    /// <param name="thisRowArray"></param>
+    /// <param name="lastRowArray"></param>
+    /// <returns></returns>
     private static bool ThreeEqual(string[] thisRowArray, string[] lastRowArray)
     {
         if (thisRowArray.Length < 4)
@@ -860,6 +906,12 @@ internal static class ProgramClass
         return true;
     }
 
+    /// <summary>
+    /// Reads all the lines from a file.
+    /// Clears rows that fail the 'OddFirst' test.
+    /// </summary>
+    /// <param name="file"></param>
+    /// <returns></returns>
     private static string[]? ReadAllLines(string file)
     {
         try

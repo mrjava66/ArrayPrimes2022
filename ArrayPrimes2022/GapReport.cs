@@ -41,10 +41,12 @@ public class GapReport(GapReportCarryState gapReportCarryState)
     private double TotalSeconds(ref double totalSeconds)
     {
         return 0;
+#pragma warning disable CS0162 // Unreachable code detected
         if (totalSeconds > 0)
             return totalSeconds;
         totalSeconds = (DateTime.Now - _startTime).TotalSeconds;
         return totalSeconds;
+#pragma warning restore CS0162 // Unreachable code detected
     }
 
     public void ReportGap(ulong prime)
