@@ -1,5 +1,6 @@
 ﻿using System.Configuration;
 using System.Reflection;
+#pragma warning disable JMA001
 
 namespace ArrayPrimes2022;
 

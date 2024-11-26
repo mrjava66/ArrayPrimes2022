@@ -99,6 +99,7 @@ internal static class ProgramClass
 
             ManageTasks(tasks, 0, ref totalTime);
 
+            var lastContinuousCheckMsg = "LastContinuousCheck,0,0,0";
             ulong lastStartPrime = 0;
             ulong lastContinuousCheck = 0;
             ulong blockNumberFix = uint.MaxValue / 2;
@@ -112,8 +113,9 @@ internal static class ProgramClass
                 if (val.StartPrime > lastStartPrime + overBlockGap && lastContinuousCheck == 0)
                 {
                     lastContinuousCheck = lastStartPrime;
-                    Console.WriteLine(
-                        $"LastContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}");
+                    lastContinuousCheckMsg =
+                        $"LastContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}";
+                    Console.WriteLine(lastContinuousCheckMsg);
                 }
 
                 lastStartPrime = val.StartPrime;
@@ -129,6 +131,7 @@ internal static class ProgramClass
                     Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
                 }
             }
+            Console.WriteLine(lastContinuousCheckMsg);
 
             var level = 0;
             var levelEnough = 1;
@@ -326,9 +329,8 @@ internal static class ProgramClass
             var line6 = "";
             var line30 = "";
             var line210 = "";
-            var reader = File.ReadLines(aFile);
-
-            foreach (var aline in reader)
+            var aFileLines = FileExtension.GetReadAllLines(aFile);
+            foreach (var aline in aFileLines)
                 try
                 {
                     var linePieces = aline.Split(',');
@@ -371,9 +373,6 @@ internal static class ProgramClass
                     Console.WriteLine(e);
                 }
 
-            // ReSharper disable once RedundantAssignment
-            reader = null;
-
             if (string.IsNullOrWhiteSpace(line2)
                 || string.IsNullOrWhiteSpace(line6)
                 || string.IsNullOrWhiteSpace(line30)
@@ -394,8 +393,8 @@ internal static class ProgramClass
             {
                 //ulong thisPrime = 0;
                 var aFile2 = aFile.Replace("GapArray", "GapPrimes");
-                var reader2 = File.ReadLines(aFile2);
-                foreach (var aline2 in reader2)
+                var aFile2Lines = FileExtension.GetReadAllLines(aFile2);
+                foreach (var aline2 in aFile2Lines)
                 {
                     if (!aline2.StartsWith("1st Gap,"))
                         continue;
@@ -916,7 +915,7 @@ internal static class ProgramClass
     {
         try
         {
-            var lines = File.ReadAllLines(file);
+            var lines = FileExtension.GetReadAllLines(file);
             for (var i = 0; i < 10; i++)
                 if (OddFirst(lines[i].Split(',')))
                     lines[i] = ",,,,";
@@ -1061,7 +1060,8 @@ internal static class ProgramClass
         var gapRows = new List<GapRowFormat>();
         var repRows = new List<RepRowFormat>();
         var rows = new List<RowFormat>();
-        foreach (var row in File.ReadAllLines(file))
+        var fileLines = FileExtension.GetReadAllLines(file);
+        foreach (var row in fileLines)
             try
             {
                 var split = row.Split(',');
