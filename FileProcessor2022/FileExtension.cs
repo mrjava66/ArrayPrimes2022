@@ -8,9 +8,10 @@ public static class FileExtension
     /// </summary>
     /// <param name="file"></param>
     /// <param name="minLines"></param>
+    /// <param name="lastPrimeRequired"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public static string[] GetReadAllLines(string file, int minLines = 460)
+    public static string[] GetReadAllLines(string file, int minLines = 460, bool lastPrimeRequired = true)
     {
         string msg;
         var retval = File.ReadAllLines(file);
@@ -20,6 +21,9 @@ public static class FileExtension
             Console.Error.WriteLine(msg);
             throw new Exception(msg);
         }
+
+        if (!lastPrimeRequired)
+            return retval;
 
         var lastPrimeLine = retval[^1];
 
@@ -48,7 +52,7 @@ public static class FileExtension
         }
 
         if (lastPrimeLine.StartsWith("LastPrime,"))
-            return retval;  // happy path, summary file that contains a LastPrime line in a sensible location.
+            return retval; // happy path, summary file that contains a LastPrime line in a sensible location.
 
         if (lastPrimeLine.Length == 0)
         {
@@ -69,7 +73,7 @@ public static class FileExtension
         }
 
         if (lastPrimeLine.StartsWith("LastPrime,"))
-            return retval;  // a LastPrime line in a not  sensible location for the 2-2**64 range.
+            return retval; // a LastPrime line in a not  sensible location for the 2-2**64 range.
 
         if (lastPrimeLine.Length == 0)
         {

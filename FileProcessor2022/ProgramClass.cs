@@ -33,6 +33,21 @@ internal static class ProgramClass
             if (string.IsNullOrWhiteSpace(fileMask))
                 throw new Exception("Must define a file mask");
 
+            var showNumPrimesLines = true;
+            try
+            {
+                var showNumPrimesLinesStr = ConfigurationManager.AppSettings["ShowNumPrimesLines"]?.ToUpper() ?? "true";
+                var didShow = bool.TryParse(showNumPrimesLinesStr, out var sn);
+                if (didShow)
+                {
+                    showNumPrimesLines = sn;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+
             var so = SearchOption.TopDirectoryOnly;
             try
             {
@@ -123,7 +138,14 @@ internal static class ProgramClass
                 if (LastPrimeBlocks)
                 {
                     var block = ((val.StartPrime - blockNumberFix) / uint.MaxValue).ToString();
-                    Console.WriteLine($"{block},{LastPrimeGapTypeFix(val.GapType)},{val.GapSize},{val.StartPrime}");
+                    if (val.GapType == "LastPrime" && !showNumPrimesLines)
+                    {
+                        //don't show.
+                    }
+                    else
+                    {
+                        Console.WriteLine($"{block},{LastPrimeGapTypeFix(val.GapType)},{val.GapSize},{val.StartPrime}");
+                    }
                 }
                 else
                 {
@@ -131,7 +153,8 @@ internal static class ProgramClass
                     Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
                 }
             }
-            Console.WriteLine(lastContinuousCheckMsg);
+            if (showNumPrimesLines)
+                Console.WriteLine(lastContinuousCheckMsg);
 
             var level = 0;
             var levelEnough = 1;
@@ -329,7 +352,7 @@ internal static class ProgramClass
             var line6 = "";
             var line30 = "";
             var line210 = "";
-            var aFileLines = FileExtension.GetReadAllLines(aFile);
+            var aFileLines = FileExtension.GetReadAllLines(aFile, 200, false);
             foreach (var aline in aFileLines)
                 try
                 {
