@@ -11,8 +11,8 @@ public partial class Form1 : Form
     private const string Uisp = "unknown-if-semi-prime";
     private const string KnownPrime = "known prime";
     private const string Nff = "no factor found";
-    private static int _numNotFoundNum;
-    private static readonly object NumNotFoundObj = new();
+    //private static int _numNotFoundNum;
+    //private static readonly object NumNotFoundObj = new();
     private static IMakePrimes? _makePrimes;
 
     private static readonly List<(string, string)> Locations = new()
@@ -56,6 +56,7 @@ public partial class Form1 : Form
         }
     }
 
+    /*
     private static void NumNotFound()
     {
         lock (NumNotFoundObj)
@@ -63,6 +64,7 @@ public partial class Form1 : Form
             _numNotFoundNum++;
         }
     }
+    */
 
     private void button1_Click(object sender, EventArgs e)
     {
@@ -90,7 +92,7 @@ public partial class Form1 : Form
             var end = start + len;
             if (end < start)
                 end = ulong.MaxValue;
-            _numNotFoundNum = 0;
+            //_numNotFoundNum = 0;
             richTextBox1.Text = "";
             var lines = new StringBuilder();
             //var firstP = (ulong)Math.Floor(Math.Sqrt(start));
@@ -132,7 +134,7 @@ public partial class Form1 : Form
                 lines.Append(task.Result);
             }
 
-            lines.Append($"{Environment.NewLine}NumNotFound:{_numNotFoundNum}");
+            //lines.Append($"{Environment.NewLine}NumNotFound:{_numNotFoundNum}");
             richTextBox1.Text = lines.ToString();
             ColorTextBox(richTextBox1);
         }
@@ -314,6 +316,11 @@ public partial class Form1 : Form
         return null;
     }
 
+    private (bool?, ulong) IsPrime2(ulong check, Dictionary<ulong, ulong> somePrimes)
+    {
+        return (IsPrime(check, somePrimes), check);
+    }
+
     private void button2_Click(object sender, EventArgs e)
     {
         try
@@ -360,7 +367,7 @@ public partial class Form1 : Form
     {
         try
         {
-            var checkedP=0;
+            var checkedP = 0;
             if (_makePrimes == null)
                 throw new Exception("_makePrimes needs a value.");
 
@@ -372,7 +379,7 @@ public partial class Form1 : Form
                 if (prime - lastPrime == 2)
                 {
                     checkedP++;
-                    var mid = (prime - 1)/2;
+                    var mid = (prime - 1) / 2;
                     if (mid < 4)
                         continue;
                     if (dict.ContainsKey(mid))
@@ -385,6 +392,81 @@ public partial class Form1 : Form
             }
 
             MessageBox.Show($@"Checked = {checkedP}, found=0");
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(exception.Message);
+        }
+    }
+
+    private void btnDig_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            if (_makePrimes == null)
+                throw new Exception("_makePrimes needs a value.");
+
+            var n1 = textBox1.Text.FixNumber();
+            var didStart = int.TryParse(n1, out var start);
+            if (!didStart)
+                throw new Exception($"Must Provide Numbers {textBox1.Text}");
+
+            if (start < 2)
+                throw new Exception("Start cannot be less than 2");
+
+            if (start > 20)
+                throw new Exception("Start cannot be over 20");
+
+            var tasks = new List<Task<(bool?, ulong)>>();
+            var somePrimes = _makePrimes.DictAllPrimes;
+            ulong baseCheck0 = 1 + (ulong)Math.Pow(10, start - 1);
+            var task0 = Task.Run(() => IsPrime2(baseCheck0, somePrimes));
+            tasks.Add(task0);
+            for (int i = 0; i < start; i++)
+            {
+                bool firstLast = i == 0 || i == start - 1;
+                var level = (ulong)Math.Pow(10, i);
+                var baseCheck = baseCheck0;
+                if (firstLast)
+                    baseCheck -= level;
+
+                for (ulong j = 1; j < 10; j++)
+                {
+                    if (firstLast && j == 1)
+                        continue;
+                    var check = baseCheck + level * j;
+                    var task = Task.Run(() => IsPrime2(check, somePrimes));
+                    tasks.Add(task);
+                    //task.Wait(); //uncomment to single thread.
+                }
+            }
+
+            var lines = new StringBuilder();
+
+            Application.DoEvents();
+            var screenHold = DateTime.Now;
+            var delta = 3;
+            var count = 0;
+            foreach (var task in tasks)
+            {
+                //every few seconds do an application.doEvents.
+                if ((DateTime.Now - screenHold).TotalSeconds > delta)
+                {
+                    screenHold = DateTime.Now;
+                    Application.DoEvents();
+                }
+
+                task.Wait();
+                if (task.Result.Item1 ?? false)
+                {
+                    lines.AppendLine($"{task.Result.Item2} prime");
+                    count++;
+                }
+            }
+
+            lines.AppendLine($"{count} primes");
+
+            richTextBox1.Text = lines.ToString();
         }
         catch (Exception exception)
         {

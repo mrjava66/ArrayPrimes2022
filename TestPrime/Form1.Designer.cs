@@ -39,6 +39,7 @@
             chkDig = new CheckBox();
             chkEven = new CheckBox();
             button3 = new Button();
+            btnDig = new Button();
             SuspendLayout();
             // 
             // textBox1
@@ -151,11 +152,22 @@
             button3.UseVisualStyleBackColor = true;
             button3.Click += button3_Click;
             // 
+            // btnDig
+            // 
+            btnDig.Location = new Point(12, 294);
+            btnDig.Name = "btnDig";
+            btnDig.Size = new Size(75, 23);
+            btnDig.TabIndex = 13;
+            btnDig.Text = "Dig";
+            btnDig.UseVisualStyleBackColor = true;
+            btnDig.Click += btnDig_Click;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(btnDig);
             Controls.Add(button3);
             Controls.Add(chkEven);
             Controls.Add(chkDig);
@@ -186,5 +198,6 @@
         private CheckBox chkDig;
         private CheckBox chkEven;
         private Button button3;
+        private Button btnDig;
     }
 }
