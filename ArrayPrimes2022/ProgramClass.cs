@@ -699,7 +699,7 @@ internal static class ProgramClass
         //gr.WriteFlush(gapFile);
 
         var gapsFile = new StreamWriter(_basePath + "0\\0\\GapArray.0." + now + ".log", false);
-        //Gap0Special(fdl, gapsFile);
+        Gap0Special(fdl, gapsFile);
         gr.ReportGaps(gapsFile);
     }
 
