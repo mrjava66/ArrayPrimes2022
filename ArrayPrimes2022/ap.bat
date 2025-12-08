@@ -1,7 +1,7 @@
 del ap.*.log
 del ap.*.err
 
-if "%COMPUTERNAME%"=="SU01-GM0774PR" ( GOTO :HIGH)
+if "%COMPUTERNAME%"=="HGAPUS-GM0N3NKS" ( GOTO :HIGH)
 GOTO :LOW
 
 :HIGH

@@ -144,6 +144,22 @@ internal static class ProgramClass
         _anvilDivisorPosition = 20;
     }
 
+    /// <summary>
+    /// Constructs an anvil, which is a data structure representing all possible arrangements 
+    /// of divisors within a specified range. This method is used to generate a byte array 
+    /// and its corresponding size based on the provided divisor list and range.
+    /// This array can be used as a mask to quickly set which numbers are divisible by the given divisors.
+    /// </summary>
+    /// <param name="dl">The array of divisors used to build the anvil.</param>
+    /// <param name="start">The starting index of the range within the divisor list.</param>
+    /// <param name="end">The ending index of the range within the divisor list.</param>
+    /// <returns>
+    /// A tuple containing:
+    /// <list type="bullet">
+    /// <item>A byte array representing the constructed anvil.</item>
+    /// <item>An unsigned long value indicating the size of the anvil.</item>
+    /// </list>
+    /// </returns>
     private static (byte[], ulong) BuildAnAnvil(int[] dl, int start, int end)
     {
         ulong divisorSize = 1;
@@ -182,6 +198,9 @@ internal static class ProgramClass
         return (anvil, divisorSize);
     }
 
+    /// <summary>
+    /// summary
+    /// </summary>
     private static void ConfigureSystem()
     {
         var bigArrayString = ConfigurationManager.AppSettings["BigArray"] ?? "true";
@@ -293,6 +312,10 @@ internal static class ProgramClass
                           $"BlockOffset={_blockOffset}");
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
     private static Dictionary<uint, bool> GetPreviousWork()
     {
         var xd = new Dictionary<uint, bool> { { 0, true } };
@@ -460,6 +483,7 @@ internal static class ProgramClass
         }
     }
 
+    ///
     private static bool GetStopValue()
     {
         try
@@ -516,10 +540,12 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    ///     outputs an array of counts of all gaps by bits of lower number.
+    ///     Outputs an array representing the counts of all gaps between primes,
+    ///     categorized by the bit lengths of the smaller prime.
+    ///     So, for each gap size, you get a count of how many times that gap size occurs in numbers of each size by the number of bits in the smaller prime.
     /// </summary>
-    /// <param name="fullDivisorList"></param>
-    /// <param name="file"></param>
+    /// <param name="fullDivisorList">The list of divisors to process.</param>
+    /// <param name="file">The output stream for writing the results.</param>
     // ReSharper disable once UnusedMember.Local
     private static void Gap0Special(uint[] fullDivisorList, TextWriter file)
     {
