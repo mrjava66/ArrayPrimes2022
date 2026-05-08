@@ -6,9 +6,9 @@ using System.Text;
 #pragma warning disable IDE0057
 #pragma warning disable CA1859
 
-namespace TestPrime;
+namespace TestPrime10;
 
-public partial class Form1 : Form
+public partial class TestPrime10Form : Form
 {
     private const string Composite = "Composite";
     private const string Composite2 = "Composite:first factors:";
@@ -46,7 +46,7 @@ public partial class Form1 : Form
 
     private int _dClickLocation = -1;
 
-    public Form1()
+    public TestPrime10Form()
     {
         InitializeComponent();
         MakePrimes.MakePrimesTask();
@@ -475,4 +475,5 @@ public partial class Form1 : Form
             MessageBox.Show(exception.Message);
         }
     }
+
 }

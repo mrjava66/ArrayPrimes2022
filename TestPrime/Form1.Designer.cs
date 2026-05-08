@@ -81,6 +81,7 @@
             textBox2.Size = new Size(688, 23);
             textBox2.TabIndex = 2;
             textBox2.Text = "1550";
+            textBox2.TextChanged += textBox2_TextChanged;
             // 
             // button1
             // 
