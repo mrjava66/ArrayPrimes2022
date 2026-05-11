@@ -78,8 +78,8 @@ public partial class TestPrime10Form : Form
         {
             if (_makePrimes == null)
                 throw new Exception("_makePrimes needs a value.");
-            var n1 = textBox1.Text.FixNumber();
-            var n2 = textBox2.Text.FixNumber();
+            var n1 = txtStart.Text.FixNumber();
+            var n2 = txtLen.Text.FixNumber();
             var didStart = ulong.TryParse(n1, out var start);
             var didLen = ulong.TryParse(n2, out var len);
             if (!didStart || !didLen)
@@ -99,7 +99,7 @@ public partial class TestPrime10Form : Form
             if (end < start)
                 end = ulong.MaxValue;
             //_numNotFoundNum = 0;
-            richTextBox1.Text = "";
+            rtbOutput.Text = "";
             var lines = new StringBuilder();
             //var firstP = (ulong)Math.Floor(Math.Sqrt(start));
             var lastP = (ulong)Math.Floor(Math.Sqrt(end));
@@ -141,8 +141,8 @@ public partial class TestPrime10Form : Form
             }
 
             //lines.Append($"{Environment.NewLine}NumNotFound:{_numNotFoundNum}");
-            richTextBox1.Text = lines.ToString();
-            ColorTextBox(richTextBox1);
+            rtbOutput.Text = lines.ToString();
+            ColorTextBox(rtbOutput);
         }
         catch (Exception exception)
         {
@@ -334,7 +334,7 @@ public partial class TestPrime10Form : Form
             var count = MakePrimes.NumPrimes;
             var prime = MakePrimes.ArrayAllPrimes[^1];
             // ReSharper disable once LocalizableElement
-            label3.Text = $"Staged to {Environment.NewLine}{count:n0}:{Environment.NewLine}{prime:n0}";
+            lblStage.Text = $"Staged to {Environment.NewLine}{count:n0}:{Environment.NewLine}{prime:n0}";
         }
         catch (Exception exception)
         {
@@ -351,13 +351,13 @@ public partial class TestPrime10Form : Form
                 _dClickLocation = 0;
 
             // keep old value.
-            var didGet = Locations.Any(x => x.Item2 == textBox1.Text && x.Item1 == textBox2.Text);
+            var didGet = Locations.Any(x => x.Item2 == txtStart.Text && x.Item1 == txtLen.Text);
             if (!didGet)
-                Locations.Add((textBox2.Text, textBox1.Text));
+                Locations.Add((txtLen.Text, txtStart.Text));
 
             var val = Locations[_dClickLocation];
-            textBox1.Text = val.Item2;
-            textBox2.Text = val.Item1;
+            txtStart.Text = val.Item2;
+            txtLen.Text = val.Item1;
         }
         catch (Exception exception)
         {
@@ -408,10 +408,10 @@ public partial class TestPrime10Form : Form
             if (_makePrimes == null)
                 throw new Exception("_makePrimes needs a value.");
 
-            var n1 = textBox1.Text.FixNumber();
+            var n1 = txtStart.Text.FixNumber();
             var didStart = int.TryParse(n1, out var start);
             if (!didStart)
-                throw new Exception($"Must Provide Numbers {textBox1.Text}");
+                throw new Exception($"Must Provide Numbers {txtStart.Text}");
 
             if (start < 2)
                 throw new Exception("Start cannot be less than 2");
@@ -468,7 +468,7 @@ public partial class TestPrime10Form : Form
 
             lines.AppendLine($"{count} primes");
 
-            richTextBox1.Text = lines.ToString();
+            rtbOutput.Text = lines.ToString();
         }
         catch (Exception exception)
         {
