@@ -8,22 +8,35 @@ internal static class ProgramClass
     //private const ulong Two32 = (ulong)uint.MaxValue + 1; //read as 2 to the 32
     private const decimal SecondsPerDay = 3600 * 24;
 
+    // Keyed by gap size; holds the earliest-occurring gap of each size across all files.
     private static readonly Dictionary<uint, GapRowFormat> AllGapRows = new();
+    // Keyed by (repeat-count, gap-size); holds the earliest repeated-gap record.
     private static readonly Dictionary<(int, uint), RepRowFormat> AllRepRows = new();
+    // Keyed by (gap-type, gap-size); holds the earliest occurrence of each typed gap.
     private static readonly Dictionary<(string?, uint), RowFormat> AllRows = new();
+    // Ordered list of LastPrime rows, one per block, used to compute continuous coverage.
     private static List<RowFormat> _allLastPrimeRows = new();
+    // When true, output is formatted for per-block LastPrime reporting.
     public static bool LastPrimeBlocks { get; set; }
+    // When true, twin-prime and related gap totals are computed and output.
     public static bool TwinTotals { get; set; }
 
+    /// <summary>
+    /// Entry point: reads configuration, processes all prime-gap log files in parallel,
+    /// then outputs sorted gap results and cumulative statistics.
+    /// </summary>
     public static void MainProgram()
     {
         try
         {
             var startTime = DateTime.Now;
 
+            // Read the maximum number of concurrent file-processing tasks from config.
             var filesTasksString = ConfigurationManager.AppSettings["FileTasks"] ?? "32";
             if (!int.TryParse(filesTasksString, out var filesTasks)) filesTasks = 32;
 
+            // Folder = root directory of log files; FileMask = mask for individual block files;
+            // AllFileMask = mask used when reorganising files into subdirectories.
             var folder = ConfigurationManager.AppSettings["Folder"];
             var fileMask = ConfigurationManager.AppSettings["FileMask"];
             var allFileMask = ConfigurationManager.AppSettings["AllFileMask"] ?? "*.*";
@@ -89,6 +102,7 @@ internal static class ProgramClass
 
             var files = GetFilesList(folder, allFileMask, so, fileMask);
 
+            // Spin up one task per file and throttle concurrency via ManageTasks.
             decimal totalTime = 0;
             var tasks = new List<Task<(List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>)>>();
             foreach (var file in files)
@@ -112,8 +126,11 @@ internal static class ProgramClass
                     Console.Error.WriteLine("Continuing to the next file.");
                 }
 
+            // Wait for all remaining tasks to finish before aggregating results.
             ManageTasks(tasks, 0, ref totalTime);
 
+            // Scan the ordered LastPrime rows to find the highest prime that has been
+            // checked without a gap in coverage (LastContinuousCheck).
             var lastContinuousCheckMsg = "LastContinuousCheck,0,0,0";
             ulong lastStartPrime = 0;
             ulong lastContinuousCheck = 0;
@@ -156,6 +173,8 @@ internal static class ProgramClass
             if (showNumPrimesLines)
                 Console.WriteLine(lastContinuousCheckMsg);
 
+            // Accumulate twin-prime and related gap totals in powers-of-two level buckets.
+            // 'bits' tracks which power-of-two bucket we are in (starting at 2^33 blocks).
             var level = 0;
             var levelEnough = 1;
             ulong sum = 0;
@@ -217,6 +236,7 @@ internal static class ProgramClass
             OutputGapTypeSummary(lastContinuousCheck, "DistLon", 1);
             OutputGapTypeSummary(lastContinuousCheck, "Sum Lon", 3);
 
+            // Output the earliest occurrence of each non-special gap type in order.
             foreach (var key in AllRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
                 if ((key.Item1 ?? "").Contains("DistLon") || (key.Item1 ?? "").Contains("Sum Lon") ||
@@ -231,6 +251,7 @@ internal static class ProgramClass
                 }
             }
 
+            // Maps repeat-count to the modular spacing used to detect missing repeated gaps.
             var gapSizeRepeat = new Dictionary<int, uint>
                 { { 2, 6 }, { 3, 6 }, { 4, 30 }, { 5, 30 }, { 6, 210 }, { 7, 210 }, { 8, 210 }, { 9, 210 } };
             uint lastGapSize = 0;
@@ -325,6 +346,12 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Reads the GapArray log for the given block and accumulates twin (gap=2), six (gap=6),
+    /// thirty (gap=30), and 210-prime (gap=210) totals. Also detects cross-block split pairs
+    /// where the last prime of the previous block and the first prime of this block form a pair.
+    /// Disables <see cref="TwinTotals"/> if the required data cannot be found.
+    /// </summary>
     private static void IncrementTwinTotals(string folder, ulong block, ulong lastPrime
         , StringBuilder splits2, StringBuilder splits6, StringBuilder splits30, StringBuilder splits210
         , ref ulong twinSum, ref ulong sixSum, ref ulong thirtySum, ref ulong twoTenSum
@@ -464,6 +491,11 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Parses the count field (column index 3) from a comma-delimited log line and adds it,
+    /// plus any <paramref name="extra"/> adjustment for cross-block splits, to <paramref name="sum"/>.
+    /// Disables <see cref="TwinTotals"/> if the line cannot be parsed.
+    /// </summary>
     private static void ParseAndAccumulateSum(string line, ref ulong sum, ulong extra)
     {
         var lineParts = line.Split(',');
@@ -481,6 +513,10 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Parses a comma-delimited log line and returns <c>(prime, gap)</c> from columns 3 and 1
+    /// respectively. Returns <c>(0, 0)</c> if the line is malformed.
+    /// </summary>
     private static (ulong, ulong) ParseGapAndPrime(string line)
     {
         var lineParts = line.Split(',');
@@ -499,6 +535,11 @@ internal static class ProgramClass
         return (prime, gap);
     }
 
+    /// <summary>
+    /// Outputs a sorted, deduplicated summary of all rows matching <paramref name="type"/>,
+    /// labelling each row as a new maximum or an already-seen gap size, and marking tail entries.
+    /// Gaps missing from the sequence are printed as "No {type}" placeholder lines.
+    /// </summary>
     private static void OutputGapTypeSummary(ulong lastContinuousCheck, string type, uint threeSize)
     {
         var typeGroupList = AllRows.Where(kvp => (kvp.Key.Item1 ?? "").Contains(type)).Select(x => x.Value).ToList();
@@ -539,6 +580,11 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Returns the ordered list of files to process. First reorganises any misplaced files into
+    /// the correct <c>group/subgroup</c> subdirectory layout, then creates summary files for
+    /// complete groups of 1024, and finally trims files that are already covered by a summary.
+    /// </summary>
     private static string[] GetFilesList(string folder, string allFileMask, SearchOption so, string fileMask)
     {
         var files = Directory.GetFiles(folder, allFileMask, so).OrderBy(f => f.Length).ThenBy(f => f).ToArray();
@@ -690,6 +736,12 @@ internal static class ProgramClass
         return files;
     }
 
+    /// <summary>
+    /// Removes individual block files from <paramref name="files"/> that are already covered by
+    /// a summary file (a file whose name contains an underscore range such as "0_1023").
+    /// When <paramref name="testForGap"/> is <see langword="true"/>, also reports any gaps in
+    /// the consecutive sequence of summarised block numbers.
+    /// </summary>
     private static string[] TrimForSummaries(string[] files, bool testForGap)
     {
         var summaryDictionary = new Dictionary<uint, bool>();
@@ -952,6 +1004,11 @@ internal static class ProgramClass
         return null;
     }
 
+    /// <summary>
+    /// Returns the display label for a gap type. Gaps whose start prime lies beyond the last
+    /// continuously-checked point are prefixed with "Fnd " (found but not yet confirmed as
+    /// first); gaps within the continuous range are prefixed with "1st " if not already so.
+    /// </summary>
     private static string FormatGapType(string? valueGapType, ulong lastContinuousCheck, ulong valueStartPrime)
     {
         if (lastContinuousCheck < valueStartPrime)
@@ -959,6 +1016,10 @@ internal static class ProgramClass
         return (valueGapType ?? "").Contains("1st") ? valueGapType ?? "" : "1st " + (valueGapType ?? "");
     }
 
+    /// <summary>
+    /// Converts the internal "LastPrime" gap-type label to the display label "NumPrimes".
+    /// Returns "NoType" for null or whitespace input.
+    /// </summary>
     private static string FormatLastPrimeGapType(string? type)
     {
         if (string.IsNullOrWhiteSpace(type))
@@ -970,6 +1031,11 @@ internal static class ProgramClass
         return type;
     }
 
+    /// <summary>
+    /// Waits for and drains completed file-processing tasks until the active count drops to
+    /// <paramref name="limitTasks"/>. Merges each completed task's results into the global
+    /// dictionaries and accumulates total CPU time.
+    /// </summary>
     private static void ManageTasks(List<Task<(List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>)>> tasks,
         int limitTasks, ref decimal totalTime)
     {
@@ -988,6 +1054,12 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Merges <paramref name="gapRows"/> into <see cref="AllGapRows"/> (keeping the earliest
+    /// occurrence of each gap size) and <paramref name="rows"/> into <see cref="AllRows"/> and
+    /// <see cref="_allLastPrimeRows"/>. Odd-sized gaps from block boundaries are tracked and
+    /// subtracted from the LastPrime count. Returns the total CPU time recorded in the rows.
+    /// </summary>
     private static decimal MergeGapAndPrimeRows(List<GapRowFormat> gapRows, List<RowFormat> rows)
     {
         var oddGapList = new List<ulong>();
@@ -1060,6 +1132,10 @@ internal static class ProgramClass
         return lastWhen;
     }
 
+    /// <summary>
+    /// Merges <paramref name="repRows"/> into <see cref="AllRepRows"/>, keeping only the
+    /// earliest-occurring record for each (repeat-count, gap-size) combination.
+    /// </summary>
     private static void MergeRepetitionRows(List<RepRowFormat> repRows)
     {
         foreach (var repRow in repRows)
@@ -1077,6 +1153,11 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Reads and parses a single log file, returning three lists: gap rows ("1st Gap" lines),
+    /// repetition rows ("1st Rep" lines), and all other rows (including "LastPrime" lines).
+    /// Malformed lines are skipped with an error written to stderr.
+    /// </summary>
     private static (List<GapRowFormat>, List<RepRowFormat>, List<RowFormat>) ProcessFileLines(string file)
     {
         //Console.WriteLine($"Reading From '{file}'");
