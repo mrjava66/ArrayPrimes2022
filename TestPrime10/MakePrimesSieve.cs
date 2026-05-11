@@ -2,7 +2,9 @@ namespace TestPrime10;
 
 public class MakePrimesSieve : IMakePrimes
 {
-    private static readonly List<ulong> ListAllPrimes = [2, 3, 5, 7];
+    public static string Progress { get; set; } = "Not Started";
+
+    private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5, 7 };
 
     private Dictionary<ulong, ulong>? _dictAllPrimes;
 
@@ -28,10 +30,11 @@ public class MakePrimesSieve : IMakePrimes
     }
 
     public int NumPrimes => _dictAllPrimes?.Count ?? 0;
-    public ulong[] ArrayAllPrimes => _dictAllPrimes?.Keys?.ToArray() ?? new ulong[] { 2, 3, 5, 7 };
+    public ulong[] ArrayAllPrimes => _dictAllPrimes?.Keys?.ToArray() ?? ListAllPrimes.ToArray();
 
     private static void MakeBaseArrays(uint[] fdl)
     {
+        Progress = "Starting base arrays...";
         var goal = ulong.MaxValue; // the final value to get.
         var divisorArrayMax =
             Math.Sqrt(goal) > uint.MaxValue

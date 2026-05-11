@@ -2,7 +2,9 @@ namespace TestPrime10;
 
 public class MakePrimesEnum : IMakePrimes
 {
-    private static readonly List<ulong> ListAllPrimes = [2, 3, 5];
+    public static string Progress { get; set; } = "Not Started";
+
+    private static readonly List<ulong> ListAllPrimes = new() { 2, 3, 5, 7 };
 
     public ulong[] ArrayAllPrimes => ListAllPrimes.ToArray();
     public Dictionary<ulong, ulong> DictAllPrimes => ArrayAllPrimes.ToDictionary(x => x, x => x);
@@ -14,6 +16,7 @@ public class MakePrimesEnum : IMakePrimes
         {
             var task = Task.Factory.StartNew(GetEnoughPrimes);
             task.Start();
+            Progress= "Task Started";
         }
         catch (InvalidOperationException)
         {
@@ -29,10 +32,20 @@ public class MakePrimesEnum : IMakePrimes
     {
         try
         {
+            var updateProgress = 0;
             var two32 = Math.Sqrt(ulong.MaxValue);
             foreach (var p in AllPrimes())
+            {
+                if (updateProgress++ > 1000)
+                {
+                    Progress = $"Got {ListAllPrimes.Count} primes, last is {p}";
+                    updateProgress = 0;
+                }
                 if (p > two32)
                     break;
+            }
+
+            Progress = "Finished";
         }
         catch
         {

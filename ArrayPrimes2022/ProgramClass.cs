@@ -108,7 +108,9 @@ internal static class ProgramClass
     public static bool BigArray { get; private set; } //controls if the two-dimensional gap array is made and displayed.
 
     /// <summary>
-    ///     All the possible arrangements of the divisors 3-23.
+    /// if (_lessRamMemory) only builds 3-17.  This is the "anvil" that we will use to quickly set bits for all the divisors in the main loop.
+    /// else builds 3-73, which is enough to cover all the divisors we will need for the main loop.
+    /// Building the anvil is a bit time-consuming, but it saves a lot of time in the main loop, so we do it at the start and then reuse it.
     /// </summary>
     private static void BuildAllAnvils()
     {

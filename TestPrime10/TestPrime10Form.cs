@@ -10,10 +10,11 @@ namespace TestPrime10;
 
 public partial class TestPrime10Form : Form
 {
+    // Classification labels used in output lines and colour-coding.
     private const string Composite = "Composite";
     private const string Composite2 = "Composite:first factors:";
-    private const string Lfsp = "large-factor-semi-prime";
-    private const string Sfsp = "small-factor-semi-prime";
+    private const string Lfsp = "large-factor-semi-prime";  // smallest factor > cbrt(n)
+    private const string Sfsp = "small-factor-semi-prime";  // smallest factor <= cbrt(n)
     private const string Uisp = "unknown-if-semi-prime";
     private const string KnownPrime = "known prime";
     private const string Nff = "no factor found";
@@ -21,6 +22,7 @@ public partial class TestPrime10Form : Form
     //private static readonly object NumNotFoundObj = new();
     private static IMakePrimes? _makePrimes;
 
+    // Preset (length, start) pairs cycled through by double-clicking txtStart.
     private static readonly List<(string, string)> Locations = new()
     {
         ("756", "70099348325843"),
@@ -44,8 +46,13 @@ public partial class TestPrime10Form : Form
         ("840", "187891466722493")
     };
 
+    // Index into Locations for the current double-click cycle position.
     private int _dClickLocation = -1;
 
+    /// <summary>
+    /// Initialises the form and kicks off the prime sieve on a background thread,
+    /// showing a startup dialog while the sieve builds.
+    /// </summary>
     public TestPrime10Form()
     {
         InitializeComponent();
@@ -58,6 +65,9 @@ public partial class TestPrime10Form : Form
         };
     }
 
+    /// <summary>
+    /// Lazily creates and returns the prime sieve implementation.
+    /// </summary>
     private static IMakePrimes MakePrimes
     {
         get
@@ -78,6 +88,10 @@ public partial class TestPrime10Form : Form
     }
     */
 
+    /// <summary>
+    /// Classifies each number in [start, start+len) as prime, semi-prime, or composite
+    /// using parallel tasks, then displays colour-coded results in <see cref="rtbOutput"/>.
+    /// </summary>
     private void btnGo_Click(object sender, EventArgs e)
     {
         try
@@ -109,11 +123,12 @@ public partial class TestPrime10Form : Form
             var lines = new StringBuilder();
             //var firstP = (ulong)Math.Floor(Math.Sqrt(start));
             var lastP = (ulong)Math.Floor(Math.Sqrt(end));
-            // if first divisible prime is > num^1/3, then value is semi-prime.
+            // If the smallest factor of n is > cbrt(n), then n is a large-factor semi-prime.
             var lastP3 = (ulong)Math.Floor(Math.Pow(end + 0.9, 1.0 / 3.0));
             var lastP3X = (ulong)Math.Floor(Math.Pow(start + 0.9, 1.0 / 3.0));
             var somePrimes = _makePrimes.DictAllPrimes;
             var first = somePrimes.First(x => x.Key > lastP3X).Key;
+            // cubeGap is true when the cbrt threshold varies across the checked range.
             var cubeGap = lastP3 > first;
             var increment = (ulong)(chkEven.Checked ? 1 : 2);
             var dig = chkDig.Checked;
@@ -156,6 +171,12 @@ public partial class TestPrime10Form : Form
         }
     }
 
+    /// <summary>
+    /// Applies background/foreground colour to each line in <paramref name="richTextBox"/>
+    /// based on its classification label: blue = prime, green = large-factor semi-prime,
+    /// yellow-green = small-factor semi-prime, red = no factor found, pink = unknown.
+    /// Composite lines are shaded by their smallest factor value.
+    /// </summary>
     private static void ColorTextBox(RichTextBox richTextBox)
     {
         foreach (var line in richTextBox.Lines)
@@ -210,6 +231,12 @@ public partial class TestPrime10Form : Form
             }
     }
 
+    /// <summary>
+    /// Trial-divides <paramref name="checkVal"/> against the known primes and returns a
+    /// formatted result line classifying it as prime, large/small-factor semi-prime,
+    /// composite, or "no factor found". When <paramref name="dig"/> is true all factors
+    /// are collected; otherwise the search stops after three factors are found.
+    /// </summary>
     private static string CheckNumber(ulong checkVal, bool dig,
         ulong lastP0, ulong lastP3, ulong lastP3X, bool cubeGap,
         Dictionary<ulong, ulong> somePrimes)
@@ -273,7 +300,7 @@ public partial class TestPrime10Form : Form
 
         line.Append($"{checkVal}:");
 
-        //need your own P3
+        // Recalculate the per-value cbrt threshold when it falls in the uncertain range.
         if (cubeGap && factors0 >= lastP3X && factors0 < lastP3)
             lastP3 = (ulong)Math.Floor(Math.Pow(checkVal + 0.9, 1.0 / 3.0));
 
@@ -311,6 +338,12 @@ public partial class TestPrime10Form : Form
         return line.ToString();
     }
 
+    /// <summary>
+    /// Returns <see langword="true"/> if <paramref name="check"/> is in the pre-built prime
+    /// dictionary or if no prime up to its square root divides it; <see langword="false"/> if
+    /// a factor is found; <see langword="null"/> if the dictionary was exhausted before
+    /// reaching the square root (result indeterminate).
+    /// </summary>
     private static bool? IsPrime(ulong check, Dictionary<ulong, ulong> somePrimes)
     {
         if (somePrimes.ContainsKey(check))
@@ -328,11 +361,19 @@ public partial class TestPrime10Form : Form
         return null;
     }
 
+    /// <summary>
+    /// Convenience wrapper that returns the primality result together with the original
+    /// value so tasks can be matched to their input without a separate lookup.
+    /// </summary>
     private static (bool?, ulong) IsPrimeWithValue(ulong check, Dictionary<ulong, ulong> somePrimes)
     {
         return (IsPrime(check, somePrimes), check);
     }
 
+    /// <summary>
+    /// Updates <see cref="lblStage"/> with the current prime count and largest staged prime,
+    /// showing how far the sieve has been built.
+    /// </summary>
     private void btnStage_Click(object sender, EventArgs e)
     {
         try
@@ -348,6 +389,10 @@ public partial class TestPrime10Form : Form
         }
     }
 
+    /// <summary>
+    /// Cycles through the preset <see cref="Locations"/> list on each double-click,
+    /// saving the current (length, start) pair back into the list if it is not already present.
+    /// </summary>
     private void txtStart_DoubleClick(object sender, EventArgs e)
     {
         try
@@ -371,6 +416,11 @@ public partial class TestPrime10Form : Form
         }
     }
 
+    /// <summary>
+    /// Searches the staged primes for any twin-prime pair (p, p+2) whose midpoint
+    /// (p+1)/2 is itself a prime, which would make it a twin semi-prime. Reports the
+    /// total number of twin pairs checked and whether any such value was found.
+    /// </summary>
     private void btnTwinSemi_Click(object sender, EventArgs e)
     {
         try
@@ -407,6 +457,12 @@ public partial class TestPrime10Form : Form
         }
     }
 
+    /// <summary>
+    /// Tests primality for numbers near 10^<c>start</c>: the base value
+    /// <c>1 + 10^(start-1)</c> and candidates obtained by varying each decimal digit
+    /// position one at a time. Results (prime / not prime) are shown in
+    /// <see cref="rtbOutput"/> with a total prime count.
+    /// </summary>
     private void btnDig_Click(object sender, EventArgs e)
     {
         try

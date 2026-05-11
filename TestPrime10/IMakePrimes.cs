@@ -6,4 +6,5 @@ public interface IMakePrimes
     int NumPrimes { get; }
     ulong[] ArrayAllPrimes { get; }
     void MakePrimesTask();
+    static string? Progress { get; set; }
 }
