@@ -144,7 +144,7 @@ internal static class ProgramClass
                     }
                     else
                     {
-                        Console.WriteLine($"{block},{LastPrimeGapTypeFix(val.GapType)},{val.GapSize},{val.StartPrime}");
+                        Console.WriteLine($"{block},{FormatLastPrimeGapType(val.GapType)},{val.GapSize},{val.StartPrime}");
                     }
                 }
                 else
@@ -214,8 +214,8 @@ internal static class ProgramClass
             _allLastPrimeRows.Clear();
             GC.Collect();
 
-            OutputSome(lastContinuousCheck, "DistLon", 1);
-            OutputSome(lastContinuousCheck, "Sum Lon", 3);
+            OutputGapTypeSummary(lastContinuousCheck, "DistLon", 1);
+            OutputGapTypeSummary(lastContinuousCheck, "Sum Lon", 3);
 
             foreach (var key in AllRows.Keys.OrderBy(num => num.Item1).ThenBy(num => num.Item2))
             {
@@ -227,7 +227,7 @@ internal static class ProgramClass
                 {
                     var endPrime = val.StartPrime != val.EndPrime ? val.EndPrime.ToString() : "";
                     Console.WriteLine(
-                        $"{FixGapType(val.GapType, lastContinuousCheck, val.StartPrime)},{val.GapSize},{val.StartPrime},{endPrime}");
+                        $"{FormatGapType(val.GapType, lastContinuousCheck, val.StartPrime)},{val.GapSize},{val.StartPrime},{endPrime}");
                 }
             }
 
@@ -249,7 +249,7 @@ internal static class ProgramClass
                     var startPrime = val.EndPrime - (ulong)(val.Repeat * val.GapSize);
 
                     Console.WriteLine(
-                        $"{FixGapType("1st Rep", lastContinuousCheck, val.StartPrime)},{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
+                        $"{FormatGapType("1st Rep", lastContinuousCheck, val.StartPrime)},{val.Repeat},{val.GapSize},{startPrime},{val.EndPrime}");
                 }
 
                 lastGapSize = val?.GapSize ?? 0;
@@ -305,7 +305,7 @@ internal static class ProgramClass
                     Console.WriteLine($"no gap,{lastGap},0,0");
                 }
 
-                Console.WriteLine("{0},{1},{2},{3}{4}", FixGapType(row.GapType, lastContinuousCheck, row.StartPrime),
+                Console.WriteLine("{0},{1},{2},{3}{4}", FormatGapType(row.GapType, lastContinuousCheck, row.StartPrime),
                     row.GapSize, row.StartPrime, row.EndPrime,
                     canTail && row.Tail ? ",Tail" : "");
                 lastGap = row.GapSize;
@@ -421,7 +421,7 @@ internal static class ProgramClass
                 {
                     if (!aline2.StartsWith("1st Gap,"))
                         continue;
-                    (thisPrime, thisGap) = SplitAndGet(aline2);
+                    (thisPrime, thisGap) = ParseGapAndPrime(aline2);
                     break;
                 }
 
@@ -453,10 +453,10 @@ internal static class ProgramClass
                 }
             }
 
-            SplitAndSum(line2, ref twinSum, extra2);
-            SplitAndSum(line6, ref sixSum, extra6);
-            SplitAndSum(line30, ref thirtySum, extra30);
-            SplitAndSum(line210, ref twoTenSum, extra210);
+            ParseAndAccumulateSum(line2, ref twinSum, extra2);
+            ParseAndAccumulateSum(line6, ref sixSum, extra6);
+            ParseAndAccumulateSum(line30, ref thirtySum, extra30);
+            ParseAndAccumulateSum(line210, ref twoTenSum, extra210);
         }
         catch (Exception e)
         {
@@ -464,7 +464,7 @@ internal static class ProgramClass
         }
     }
 
-    private static void SplitAndSum(string line, ref ulong sum, ulong extra)
+    private static void ParseAndAccumulateSum(string line, ref ulong sum, ulong extra)
     {
         var lineParts = line.Split(',');
         if (lineParts.Length < 4)
@@ -481,7 +481,7 @@ internal static class ProgramClass
         }
     }
 
-    private static (ulong, ulong) SplitAndGet(string line)
+    private static (ulong, ulong) ParseGapAndPrime(string line)
     {
         var lineParts = line.Split(',');
         if (lineParts.Length < 4)
@@ -499,7 +499,7 @@ internal static class ProgramClass
         return (prime, gap);
     }
 
-    private static void OutputSome(ulong lastContinuousCheck, string type, uint threeSize)
+    private static void OutputGapTypeSummary(ulong lastContinuousCheck, string type, uint threeSize)
     {
         var typeGroupList = AllRows.Where(kvp => (kvp.Key.Item1 ?? "").Contains(type)).Select(x => x.Value).ToList();
         typeGroupList.Add(new RowFormat { GapType = type, GapSize = threeSize, EndPrime = 3, StartPrime = 3 });
@@ -535,7 +535,7 @@ internal static class ProgramClass
             lastGapSize = val.GapSize;
             var tailStr = canTail && val.Tail ? ",Tail" : "";
             Console.WriteLine(
-                $"{FixGapType(val.GapType, lastContinuousCheck, val.StartPrime)},{val.GapSize},{val.StartPrime}{tailStr}");
+                $"{FormatGapType(val.GapType, lastContinuousCheck, val.StartPrime)},{val.GapSize},{val.StartPrime}{tailStr}");
         }
     }
 
@@ -831,12 +831,12 @@ internal static class ProgramClass
                 {
                     outfileRows.AddIfNew(lastRow);
                 }
-                else if (OddFirst(lastRowArray))
+                else if (HasOddFirstGap(lastRowArray))
                 {
                     //keep all odd gaps.
                     outfileRows.Add(lastRow);
                 }
-                else if (ThreeEqual(thisRowArray, lastRowArray))
+                else if (FirstThreeColumnsMatch(thisRowArray, lastRowArray))
                 {
                     var didThis = ulong.TryParse(thisRowArray[4], out var thisVal);
                     var didLast = ulong.TryParse(lastRowArray[4], out var lastVal);
@@ -892,7 +892,7 @@ internal static class ProgramClass
     /// </summary>
     /// <param name="lastRowArray"></param>
     /// <returns></returns>
-    private static bool OddFirst(string[] lastRowArray)
+    private static bool HasOddFirstGap(string[] lastRowArray)
     {
         if (lastRowArray.Length < 3)
             return false;
@@ -913,7 +913,7 @@ internal static class ProgramClass
     /// <param name="thisRowArray"></param>
     /// <param name="lastRowArray"></param>
     /// <returns></returns>
-    private static bool ThreeEqual(string[] thisRowArray, string[] lastRowArray)
+    private static bool FirstThreeColumnsMatch(string[] thisRowArray, string[] lastRowArray)
     {
         if (thisRowArray.Length < 4)
             return false;
@@ -940,7 +940,7 @@ internal static class ProgramClass
         {
             var lines = FileExtension.GetReadAllLines(file);
             for (var i = 0; i < 10; i++)
-                if (OddFirst(lines[i].Split(',')))
+                if (HasOddFirstGap(lines[i].Split(',')))
                     lines[i] = ",,,,";
             return lines;
         }
@@ -952,14 +952,14 @@ internal static class ProgramClass
         return null;
     }
 
-    private static string FixGapType(string? valueGapType, ulong lastContinuousCheck, ulong valueStartPrime)
+    private static string FormatGapType(string? valueGapType, ulong lastContinuousCheck, ulong valueStartPrime)
     {
         if (lastContinuousCheck < valueStartPrime)
             return (valueGapType ?? "").Replace("1st ", "Fnd ");
         return (valueGapType ?? "").Contains("1st") ? valueGapType ?? "" : "1st " + (valueGapType ?? "");
     }
 
-    private static string LastPrimeGapTypeFix(string? type)
+    private static string FormatLastPrimeGapType(string? type)
     {
         if (string.IsNullOrWhiteSpace(type))
             return "NoType";
@@ -980,15 +980,15 @@ internal static class ProgramClass
 
             task.Wait();
             var (gapRows, repRows, rows) = task.Result;
-            AppendAllRepRows(repRows);
+            MergeRepetitionRows(repRows);
 
-            var lastWhen = AppendOtherRows(gapRows, rows);
+            var lastWhen = MergeGapAndPrimeRows(gapRows, rows);
 
             totalTime += lastWhen;
         }
     }
 
-    private static decimal AppendOtherRows(List<GapRowFormat> gapRows, List<RowFormat> rows)
+    private static decimal MergeGapAndPrimeRows(List<GapRowFormat> gapRows, List<RowFormat> rows)
     {
         var oddGapList = new List<ulong>();
         //uint oddGaps = 0;
@@ -1060,7 +1060,7 @@ internal static class ProgramClass
         return lastWhen;
     }
 
-    private static void AppendAllRepRows(List<RepRowFormat> repRows)
+    private static void MergeRepetitionRows(List<RepRowFormat> repRows)
     {
         foreach (var repRow in repRows)
         {
