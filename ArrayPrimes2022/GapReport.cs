@@ -79,8 +79,8 @@ public class GapReport(GapReportCarryState gapReportCarryState)
 
     /// <summary>
     /// Returns the elapsed seconds since this instance was created, computing and caching
-    /// the value in <paramref name="totalSeconds"/> on the first call. Currently short-
-    /// circuits to 0 for performance; un-comment the body to restore live timing.
+    /// the value in <paramref name="totalSeconds"/> on the first call. Currently
+    /// short-circuits to 0 for performance; un-comment the body to restore live timing.
     /// </summary>
     //calc this at most once per RecordPrime call.
     private double GetElapsedSeconds(ref double totalSeconds)
