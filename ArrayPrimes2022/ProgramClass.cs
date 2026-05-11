@@ -598,7 +598,7 @@ internal static class ProgramClass
         }
 
         SnapshotGapCounts(gapArray, gapBitArray, bits);
-        GapReport.MakeGrid(file, gapBitArray, false);
+        GapReport.WriteGapGrid(file, gapBitArray, false);
     }
 
     /// <summary>
@@ -715,12 +715,12 @@ internal static class ProgramClass
 
         var countPrimeNumber = 0;
         fdl[0] = 2;
-        gr.ReportGap(2);
+        gr.RecordPrime(2);
         //don't sieve for 2
         foreach (var seedPrime in new ulong[] { 3, 5, 7, 11, 13 })
         {
             fdl[++countPrimeNumber] = (uint)seedPrime;
-            gr.ReportGap(seedPrime);
+            gr.RecordPrime(seedPrime);
             SeedPrimeSieve(arrays, arrays.Count, baseArrayUnitSize, seedPrime);
         }
 
@@ -738,7 +738,7 @@ internal static class ProgramClass
                     prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
                     fdl[++countPrimeNumber] = (uint)prime;
 
-                    gr.ReportGap(prime);
+                    gr.RecordPrime(prime);
 
                     //outfile.WriteLine(prime);
                     // don't need to sieve values greater than top.
@@ -747,14 +747,14 @@ internal static class ProgramClass
                 }
             }
 
-        gr.ReportGap(baseArrayCount * arraySize16); // do an end gap.
+        gr.RecordPrime(baseArrayCount * arraySize16); // do an end gap.
         var gapFile = new StreamWriter(_basePath + "0\\0\\GapPrimes.0." + now + ".log", false);
-        gr.LastPrime(prime, gapFile); // do an end gap.
+        gr.WriteLastPrimeEntry(prime, gapFile); // do an end gap.
         //gr.WriteFlush(gapFile);
 
         var gapsFile = new StreamWriter(_basePath + "0\\0\\GapArray.0." + now + ".log", false);
         WriteGapBitGrid(fdl, gapsFile);
-        gr.ReportGaps(gapsFile);
+        gr.WriteGapSummary(gapsFile);
     }
 
     /// <summary>
@@ -1080,7 +1080,7 @@ internal static class ProgramClass
                 divisorsFillPosition++;
             }
 
-            grl.LoudReportGap("AfterNewStreamWriter"); // log how long it took to maintain/grow the divisor offsets.
+            grl.AppendTimingMark("AfterNewStreamWriter"); // log how long it took to maintain/grow the divisor offsets.
 
             //// markup the array. (use the divisor array, update the divisor array)
             var bytes00 = new byte[Two28];
@@ -1092,7 +1092,7 @@ internal static class ProgramClass
 
             Buffer.BlockCopy(Anvils[0], (int)notOffset, bytes00, 0, (int)Two28);
 
-            grl.LoudReportGap("AfterBlockCopy"); // log how long it takes to put in the anvil.
+            grl.AppendTimingMark("AfterBlockCopy"); // log how long it takes to put in the anvil.
 
             if (!_lessRamMemory)
             {
@@ -1107,11 +1107,11 @@ internal static class ProgramClass
                 }
 
                 ApplyAnvilLayers(bytes00, notOffsets);
-                grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
+                grl.AppendTimingMark("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
             }
 
             SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, _anvilDivisorPosition, bytes00);
-            grl.LoudReportGap("AfterSieve"); // log how long it took to apply the other divisors
+            grl.AppendTimingMark("AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;
             // analyze the array.
@@ -1123,7 +1123,7 @@ internal static class ProgramClass
                     if (IsBitSet(bytes00[i], l)) continue;
                     //if ((bytes00[i] & (1 << l)) != 0) continue;
                     prime = loopMinCheckedValue + 16 * i + 2 * (ulong)l + 1;
-                    grl.ReportGap(prime);
+                    grl.RecordPrime(prime);
                 }
             }
 
@@ -1133,7 +1133,7 @@ internal static class ProgramClass
             GC.Collect();
 
             if (a + 1 == v2)
-                grl.ReportGap(loopMaxCheckedValue); // puts an odd length gap at the end.
+                grl.RecordPrime(loopMaxCheckedValue); // puts an odd length gap at the end.
             /*
             else
                 lastCheckedPrime = prime;
@@ -1157,7 +1157,7 @@ internal static class ProgramClass
                 while (gapFile == null)
                 {
                     gapFile = new StreamWriter(dirMakePath + "GapPrimes." + a + "." + now + ".log", false);
-                    grl.LastPrime(prime, gapFile);
+                    grl.WriteLastPrimeEntry(prime, gapFile);
                 }
             }
             catch (Exception e)
@@ -1172,7 +1172,7 @@ internal static class ProgramClass
                 while (gapsFile == null)
                 {
                     gapsFile = new StreamWriter(dirMakePath + "GapArray." + a + "." + now + ".log", false);
-                    grl.ReportGaps(gapsFile);
+                    grl.WriteGapSummary(gapsFile);
                 }
             }
             catch (Exception e)

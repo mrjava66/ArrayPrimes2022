@@ -1,4 +1,6 @@
 ﻿using System.Text;
+#pragma warning disable JMA001
+#pragma warning disable JMC001
 
 namespace ArrayPrimes2022;
 
@@ -24,7 +26,7 @@ public class GapReport(GapReportCarryState gapReportCarryState)
 
     public GapReportCarryState State => new() { GapRepeat = _gapRepeat, LastGap = _lastGap, LastPrime = _lastPrimeNum };
 
-    public void LastPrime(ulong lastPrime, TextWriter gapFile)
+    public void WriteLastPrimeEntry(ulong lastPrime, TextWriter gapFile)
     {
         _gapFileBuilder.AppendLine(
             $"LastPrime,{_primeCount},Primes,{lastPrime},{lastPrime},{(DateTime.Now - _startTime).TotalSeconds}");
@@ -32,13 +34,13 @@ public class GapReport(GapReportCarryState gapReportCarryState)
         gapFile.Flush();
     }
 
-    public void LoudReportGap(string extra)
+    public void AppendTimingMark(string extra)
     {
         _gapFileBuilder.AppendLine($"Not Gap,0,Primes,0,{extra},{(DateTime.Now - _startTime).TotalSeconds}");
     }
 
     //calc this at most once per reportGap.
-    private double TotalSeconds(ref double totalSeconds)
+    private double GetElapsedSeconds(ref double totalSeconds)
     {
         return 0;
 #pragma warning disable CS0162 // Unreachable code detected
@@ -49,7 +51,7 @@ public class GapReport(GapReportCarryState gapReportCarryState)
 #pragma warning restore CS0162 // Unreachable code detected
     }
 
-    public void ReportGap(ulong prime)
+    public void RecordPrime(ulong prime)
     {
         _primeCount++;
 
@@ -65,20 +67,20 @@ public class GapReport(GapReportCarryState gapReportCarryState)
         if ((int)ulongGap >= _gapFound.Length - 1)
         {
             _gapFileBuilder.AppendLine(
-                $"SuperGap,{ulongGap},Primes,{prime},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                $"SuperGap,{ulongGap},Primes,{prime},{_lastPrimeNum},{GetElapsedSeconds(ref totalSeconds)}");
         }
         else
         {
             if (_gapRepeat > 1 && _gapRepeatFound[_gapRepeat, ulongGap] == 0)
             {
                 _gapFileBuilder.AppendLine(
-                    $"1st Rep,{_gapRepeat},{ulongGap},{prime},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                    $"1st Rep,{_gapRepeat},{ulongGap},{prime},{_lastPrimeNum},{GetElapsedSeconds(ref totalSeconds)}");
                 _gapRepeatFound[_gapRepeat, ulongGap]++;
             }
 
             if (_gapFound[0, ulongGap] == 0)
                 _gapFileBuilder.AppendLine(
-                    $"1st Gap,{ulongGap},Primes,{prime},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                    $"1st Gap,{ulongGap},Primes,{prime},{_lastPrimeNum},{GetElapsedSeconds(ref totalSeconds)}");
             _gapFound[0, ulongGap]++;
         }
 
@@ -86,7 +88,7 @@ public class GapReport(GapReportCarryState gapReportCarryState)
         {
             _gapFound[1, _lastGap + ulongGap]++;
             _gapFileBuilder.AppendLine(
-                $"Sum Lon,{_lastGap + ulongGap},Primes,{_lastPrimeNum},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                $"Sum Lon,{_lastGap + ulongGap},Primes,{_lastPrimeNum},{_lastPrimeNum},{GetElapsedSeconds(ref totalSeconds)}");
         }
 
         var minDistLonely = _lastGap > ulongGap ? ulongGap : _lastGap;
@@ -94,7 +96,7 @@ public class GapReport(GapReportCarryState gapReportCarryState)
         {
             _gapFound[2, minDistLonely]++;
             _gapFileBuilder.AppendLine(
-                $"DistLon,{minDistLonely},Primes,{_lastPrimeNum},{_lastPrimeNum},{TotalSeconds(ref totalSeconds)}");
+                $"DistLon,{minDistLonely},Primes,{_lastPrimeNum},{_lastPrimeNum},{GetElapsedSeconds(ref totalSeconds)}");
         }
 
         if (ProgramClass.BigArray)
@@ -106,7 +108,7 @@ public class GapReport(GapReportCarryState gapReportCarryState)
         _lastPrimeNum = prime;
     }
 
-    public void ReportGaps(TextWriter gapsFile)
+    public void WriteGapSummary(TextWriter gapsFile)
     {
         var gaps = new StringBuilder();
         for (var i = 0; i < _gapFound.GetLength(1); i++)
@@ -115,12 +117,12 @@ public class GapReport(GapReportCarryState gapReportCarryState)
         gapsFile.Write(gaps.ToString());
 
         if (ProgramClass.BigArray)
-            MakeGrid(gapsFile, _gapGrid, true);
+            WriteGapGrid(gapsFile, _gapGrid, true);
 
         gapsFile.Flush();
     }
 
-    public static void MakeGrid(TextWriter gapsFile, int[,] gridArray, bool doubleTop)
+    public static void WriteGapGrid(TextWriter gapsFile, int[,] gridArray, bool doubleTop)
     {
         var maxJ = 0;
         var maxK = 0;
