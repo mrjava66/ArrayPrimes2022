@@ -1,4 +1,4 @@
-ï»¿using System.Configuration;
+using System.Configuration;
 using System.Reflection;
 #pragma warning disable JMA001
 
@@ -110,7 +110,7 @@ internal static class ProgramClass
     /// <summary>
     ///     All the possible arrangements of the divisors 3-23.
     /// </summary>
-    private static void BuildAnvil()
+    private static void BuildAllAnvils()
     {
         //build the full list
         //2,
@@ -120,7 +120,7 @@ internal static class ProgramClass
         //61, 67, 71, 73,
         var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73 };
 
-        var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 1, 7));
+        var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 1, 7));
         taskBuildAnvil0.Wait();
 
         Anvils.Add(taskBuildAnvil0.Result.Item1);
@@ -129,9 +129,9 @@ internal static class ProgramClass
 
         if (_lessRamMemory) return;
 
-        var taskBuildAnvil1 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 8, 12));
-        var taskBuildAnvil2 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 13, 16));
-        var taskBuildAnvil3 = Task.Factory.StartNew(() => BuildAnAnvil(dl, 17, 20));
+        var taskBuildAnvil1 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 8, 12));
+        var taskBuildAnvil2 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 13, 16));
+        var taskBuildAnvil3 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 17, 20));
         taskBuildAnvil1.Wait();
         taskBuildAnvil2.Wait();
         taskBuildAnvil3.Wait();
@@ -160,7 +160,7 @@ internal static class ProgramClass
     /// <item>An unsigned long value indicating the size of the anvil.</item>
     /// </list>
     /// </returns>
-    private static (byte[], ulong) BuildAnAnvil(int[] dl, int start, int end)
+    private static (byte[], ulong) BuildAnvilLayer(int[] dl, int start, int end)
     {
         ulong divisorSize = 1;
         for (var i = start; i <= end; i++)
@@ -323,7 +323,7 @@ internal static class ProgramClass
     /// is false the scan is skipped and only block 0 is returned.
     /// </summary>
     /// <returns>A dictionary mapping completed block numbers to <see langword="true"/>.</returns>
-    private static Dictionary<uint, bool> GetPreviousWork()
+    private static Dictionary<uint, bool> LoadCompletedBlocks()
     {
         var xd = new Dictionary<uint, bool> { { 0, true } };
 
@@ -363,7 +363,7 @@ internal static class ProgramClass
     /// are known to contain first-occurrence prime gaps, rather than running every block
     /// in strict numerical order when <see cref="_runAllBlocksInOrder"/> is false.
     /// </summary>
-    private static uint GuidedBlocks(uint runBlock)
+    private static uint GetNextGuidedBlock(uint runBlock)
     {
         foreach (var retval in Guided)
             if (retval >= runBlock)
@@ -392,9 +392,9 @@ internal static class ProgramClass
             ConfigureSystem();
 
             var start = DateTime.Now;
-            var taskBuildAnvil = MakeRunningBuildAnvilProcess();
+            var taskBuildAnvil = StartAnvilBuildTask();
             var fullDivisorList = new uint[203280222];
-            MakeBaseArrays(fullDivisorList, now);
+            BuildFullDivisorList(fullDivisorList, now);
             Console.WriteLine($"Base Arrays {(DateTime.Now - start).TotalSeconds}");
             GC.Collect();
             taskBuildAnvil.Wait();
@@ -411,7 +411,7 @@ internal static class ProgramClass
             var tasks = new List<Task>();
 
             //build a list of previous work.
-            var xd = GetPreviousWork();
+            var xd = LoadCompletedBlocks();
 
             QuickCheck(fullDivisorList, now, xd);
             var minBlock = (uint)(_minvalueNumber / (Two32 * blockAssignmentSize));
@@ -424,10 +424,10 @@ internal static class ProgramClass
 
                     ManageTasks(tasks);
 
-                    StartNewSpacer();
+                    EnforceTaskStartSpacing();
                     var val = value;
                     var taskE = Task.Factory.StartNew(() =>
-                        ProcessNumberBlocks(fullDivisorList, val, val + 1, now));
+                        SieveNumberBlocks(fullDivisorList, val, val + 1, now));
                     tasks.Add(taskE);
                     xd.TryAdd(val, true);
                 }
@@ -436,7 +436,7 @@ internal static class ProgramClass
             {
                 if (runBlock < minBlock) continue;
 
-                runBlock = _runAllBlocksInOrder ? runBlock : GuidedBlocks(runBlock);
+                runBlock = _runAllBlocksInOrder ? runBlock : GetNextGuidedBlock(runBlock);
 
                 var block = runBlock;
 
@@ -472,10 +472,10 @@ internal static class ProgramClass
 
                 MaintainPreviousWork(ref xd, firstBlock, runBlock, lastBlock, minBlock, blockAssignmentSize);
 
-                StartNewSpacer();
-                var taskE = Task.Factory.StartNew(() => ProcessNumberBlocks(fullDivisorList, minvalue, maxvalue, now));
+                EnforceTaskStartSpacing();
+                var taskE = Task.Factory.StartNew(() => SieveNumberBlocks(fullDivisorList, minvalue, maxvalue, now));
                 tasks.Add(taskE);
-                //ProcessNumberBlocks(fullDivisorList, minvalue, maxvalue, now);
+                //SieveNumberBlocks(fullDivisorList, minvalue, maxvalue, now);
                 for (var i = minvalue; i < maxvalue; i++)
                     xd.TryAdd(i, true);
             }
@@ -570,7 +570,7 @@ internal static class ProgramClass
     /// <param name="fullDivisorList">The list of divisors to process.</param>
     /// <param name="file">The output stream for writing the results.</param>
     // ReSharper disable once UnusedMember.Local
-    private static void Gap0Special(uint[] fullDivisorList, TextWriter file)
+    private static void WriteGapBitGrid(uint[] fullDivisorList, TextWriter file)
     {
         var gapBitArray = new int[338, 35];
         var gapArray = new int[338];
@@ -588,7 +588,7 @@ internal static class ProgramClass
                 gapArray[gap / 2]++;
             while (p >= bitsVal)
             {
-                PutUpGapArray(gapArray, gapBitArray, bits);
+                SnapshotGapCounts(gapArray, gapBitArray, bits);
                 bits++;
                 bitsVal = bitsNextVal;
                 bitsNextVal = 2 * bitsVal;
@@ -597,7 +597,7 @@ internal static class ProgramClass
             oldP = p;
         }
 
-        PutUpGapArray(gapArray, gapBitArray, bits);
+        SnapshotGapCounts(gapArray, gapBitArray, bits);
         GapReport.MakeGrid(file, gapBitArray, false);
     }
 
@@ -606,7 +606,7 @@ internal static class ProgramClass
     /// <paramref name="bits"/>-th column of <paramref name="gapBitArray"/>, then resets
     /// <paramref name="gapArray"/> to zero ready for the next bit-length bucket.
     /// </summary>
-    private static void PutUpGapArray(int[] gapArray, int[,] gapBitArray, int bits)
+    private static void SnapshotGapCounts(int[] gapArray, int[,] gapBitArray, int bits)
     {
         for (var j = 0; j < gapArray.Length; j++)
         {
@@ -634,7 +634,7 @@ internal static class ProgramClass
             return;
 
         _getPreviousWorkTime = DateTime.Now + GetPreviousWorkCadence;
-        xd = GetPreviousWork();
+        xd = LoadCompletedBlocks();
 
         if (_blockOffsetConfig <= 0)
             //no separator to maintain.
@@ -665,7 +665,7 @@ internal static class ProgramClass
     ///     if time since last start is long enough, go.
     ///     otherwise, wait the spacing.
     /// </summary>
-    private static void StartNewSpacer()
+    private static void EnforceTaskStartSpacing()
     {
         if (_startTimeSpacer > DateTime.Now)
         {
@@ -686,7 +686,7 @@ internal static class ProgramClass
     /// <param name="fdl"></param>
     /// <param name="now"></param>
     /// <returns></returns>
-    private static void MakeBaseArrays(uint[] fdl, string now)
+    private static void BuildFullDivisorList(uint[] fdl, string now)
     {
         //var outfile = new StreamWriter("ThreadPrimes.log", false);
 
@@ -721,7 +721,7 @@ internal static class ProgramClass
         {
             fdl[++countPrimeNumber] = (uint)seedPrime;
             gr.ReportGap(seedPrime);
-            StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, seedPrime);
+            SeedPrimeSieve(arrays, arrays.Count, baseArrayUnitSize, seedPrime);
         }
 
         ulong arraySize16 = baseArrayUnitSize * 16;
@@ -743,7 +743,7 @@ internal static class ProgramClass
                     //outfile.WriteLine(prime);
                     // don't need to sieve values greater than top.
                     if (prime < sieveTop)
-                        StartUpSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
+                        SeedPrimeSieve(arrays, arrays.Count, baseArrayUnitSize, prime);
                 }
             }
 
@@ -753,7 +753,7 @@ internal static class ProgramClass
         //gr.WriteFlush(gapFile);
 
         var gapsFile = new StreamWriter(_basePath + "0\\0\\GapArray.0." + now + ".log", false);
-        Gap0Special(fdl, gapsFile);
+        WriteGapBitGrid(fdl, gapsFile);
         gr.ReportGaps(gapsFile);
     }
 
@@ -761,9 +761,9 @@ internal static class ProgramClass
     ///     Gets us a build anvil process that runs concurrently with building the divisor arrays.
     /// </summary>
     /// <returns></returns>
-    private static Task MakeRunningBuildAnvilProcess()
+    private static Task StartAnvilBuildTask()
     {
-        var taskBuildAnvil = Task.Factory.StartNew(BuildAnvil);
+        var taskBuildAnvil = Task.Factory.StartNew(BuildAllAnvils);
         Thread.Sleep(250);
 
         // if it is still not running, start it.
@@ -860,7 +860,7 @@ internal static class ProgramClass
     /// Applies a segmented sieve over the working byte array <paramref name="bytes0"/> for
     /// all primes from index <paramref name="divisorPosition"/> up to (not including)
     /// <paramref name="divisorsFillPosition"/> in the full divisor list. For each prime the
-    /// method advances two alternating step sizes â€” <c>p</c> and <c>2p</c> â€” to skip
+    /// method advances two alternating step sizes — <c>p</c> and <c>2p</c> — to skip
     /// multiples of 3, marking composite bits in <paramref name="bytes0"/>. The write-guard
     /// check (<c>bytes0[by] != 255</c> before OR-ing) reduces memory-write pressure by ~30 %
     /// when running multi-threaded.
@@ -1017,7 +1017,7 @@ internal static class ProgramClass
     /// <param name="v2"></param>
     /// <param name="now"></param>
     /// <returns></returns>
-    private static void ProcessNumberBlocks(uint[] fdl, uint v1, uint v2, string now)
+    private static void SieveNumberBlocks(uint[] fdl, uint v1, uint v2, string now)
     {
         var maxCheckedValue = Two32 * v2;
         if (maxCheckedValue == 0)
@@ -1033,7 +1033,7 @@ internal static class ProgramClass
         var lastCheckedPrime =
             v1 * Two32; // the gap on the first and last batch will be odd.  But, we can keep track of the rest.
 
-        ProcessThisStuffCompact(fdl, v1, v2, now, offsets, lastCheckedPrime);
+        SieveSegmentAndWriteLogs(fdl, v1, v2, now, offsets, lastCheckedPrime);
     }
 
     /// <summary>
@@ -1043,7 +1043,7 @@ internal static class ProgramClass
     /// remaining sieve divisors, then walks the result byte-by-byte to collect primes and
     /// report gaps. Writes GapPrimes and GapArray log files for each completed segment.
     /// </summary>
-    private static void ProcessThisStuffCompact(uint[] fdl, uint v1, uint v2, string now, uint[] offsets,
+    private static void SieveSegmentAndWriteLogs(uint[] fdl, uint v1, uint v2, string now, uint[] offsets,
         ulong lastCheckedPrime)
     {
         // process all the primes in segment.  (a*2^32 -> (a+1)*2^32)
@@ -1106,7 +1106,7 @@ internal static class ProgramClass
                     notOffsets[i] = notOffsetMore;
                 }
 
-                BlendIntoArray(bytes00, notOffsets);
+                ApplyAnvilLayers(bytes00, notOffsets);
                 grl.LoudReportGap("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
             }
 
@@ -1191,7 +1191,7 @@ internal static class ProgramClass
     /// array pre-eliminates a large fraction of candidates before the main sieve runs.
     /// Throws if any offset would read outside the bounds of its anvil array.
     /// </summary>
-    private static void BlendIntoArray(byte[] bytes00, ulong[] notOffsets)
+    private static void ApplyAnvilLayers(byte[] bytes00, ulong[] notOffsets)
     {
         for (var j = 1; j <= 3; j++)
         {
@@ -1250,9 +1250,9 @@ internal static class ProgramClass
 
             ManageTasks(tasks);
 
-            StartNewSpacer();
+            EnforceTaskStartSpacing();
             var taskE = Task.Factory.StartNew(() =>
-                ProcessNumberBlocks(fdl, quickCheckBlock, quickCheckBlock + 1, now));
+                SieveNumberBlocks(fdl, quickCheckBlock, quickCheckBlock + 1, now));
             tasks.Add(taskE);
         }
 
@@ -1274,7 +1274,7 @@ internal static class ProgramClass
     /// so that the mark begins at the correct position relative to the window's base address.
     /// All marking tasks are run in parallel and awaited before returning.
     /// </summary>
-    private static void StartUpSieve(List<byte[]> arrays, int arrayCount, ulong arraySize, ulong prime)
+    private static void SeedPrimeSieve(List<byte[]> arrays, int arrayCount, ulong arraySize, ulong prime)
     {
         var arraySize16 = arraySize * 16;
         var tasks = new List<Task>();
