@@ -49,7 +49,13 @@ public partial class TestPrime10Form : Form
     public TestPrime10Form()
     {
         InitializeComponent();
-        MakePrimes.MakePrimesTask();
+        var startupForm = new StartupForm();
+        Shown += async (_, _) =>
+        {
+            startupForm.Show(this);
+            await Task.Run(() => MakePrimes.MakePrimesTask());
+            startupForm.Close();
+        };
     }
 
     private static IMakePrimes MakePrimes
@@ -72,7 +78,7 @@ public partial class TestPrime10Form : Form
     }
     */
 
-    private void button1_Click(object sender, EventArgs e)
+    private void btnGo_Click(object sender, EventArgs e)
     {
         try
         {
@@ -322,12 +328,12 @@ public partial class TestPrime10Form : Form
         return null;
     }
 
-    private static (bool?, ulong) IsPrime2(ulong check, Dictionary<ulong, ulong> somePrimes)
+    private static (bool?, ulong) IsPrimeWithValue(ulong check, Dictionary<ulong, ulong> somePrimes)
     {
         return (IsPrime(check, somePrimes), check);
     }
 
-    private void button2_Click(object sender, EventArgs e)
+    private void btnStage_Click(object sender, EventArgs e)
     {
         try
         {
@@ -342,7 +348,7 @@ public partial class TestPrime10Form : Form
         }
     }
 
-    private void textBox1_DoubleClick(object sender, EventArgs e)
+    private void txtStart_DoubleClick(object sender, EventArgs e)
     {
         try
         {
@@ -365,7 +371,7 @@ public partial class TestPrime10Form : Form
         }
     }
 
-    private void button3_Click(object sender, EventArgs e)
+    private void btnTwinSemi_Click(object sender, EventArgs e)
     {
         try
         {
@@ -422,7 +428,7 @@ public partial class TestPrime10Form : Form
             var tasks = new List<Task<(bool?, ulong)>>();
             var somePrimes = _makePrimes.DictAllPrimes;
             ulong baseCheck0 = 1 + (ulong)Math.Pow(10, start - 1);
-            var task0 = Task.Run(() => IsPrime2(baseCheck0, somePrimes));
+            var task0 = Task.Run(() => IsPrimeWithValue(baseCheck0, somePrimes));
             tasks.Add(task0);
             for (int i = 0; i < start; i++)
             {
@@ -437,7 +443,7 @@ public partial class TestPrime10Form : Form
                     if (firstLast && j == 1)
                         continue;
                     var check = baseCheck + level * j;
-                    var task = Task.Run(() => IsPrime2(check, somePrimes));
+                    var task = Task.Run(() => IsPrimeWithValue(check, somePrimes));
                     tasks.Add(task);
                     //task.Wait(); //uncomment to single thread.
                 }

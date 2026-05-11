@@ -60,7 +60,7 @@
             btnTwinSemi.TabIndex = 24;
             btnTwinSemi.Text = "TwinSemi";
             btnTwinSemi.UseVisualStyleBackColor = true;
-            btnTwinSemi.Click += button3_Click;
+            btnTwinSemi.Click += btnTwinSemi_Click;
             // 
             // chkEven
             // 
@@ -101,7 +101,7 @@
             btnStage.TabIndex = 20;
             btnStage.Text = "Stage";
             btnStage.UseVisualStyleBackColor = true;
-            btnStage.Click += button2_Click;
+            btnStage.Click += btnStage_Click;
             // 
             // lblStage
             // 
@@ -120,7 +120,7 @@
             btnGo.TabIndex = 18;
             btnGo.Text = "Go!";
             btnGo.UseVisualStyleBackColor = true;
-            btnGo.Click += button1_Click;
+            btnGo.Click += btnGo_Click;
             // 
             // lblLen
             // 
@@ -159,7 +159,7 @@
             txtStart.Size = new Size(688, 23);
             txtStart.TabIndex = 14;
             txtStart.Text = "18361375334787046697";
-            txtStart.DoubleClick += textBox1_DoubleClick;
+            txtStart.DoubleClick += txtStart_DoubleClick;
             // 
             // TestPrime10Form
             // 
