@@ -199,7 +199,11 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    /// summary
+    /// Reads all application settings from the .config file and applies them to the
+    /// static fields that govern runtime behaviour: array sizes, task concurrency,
+    /// block ordering, quick-check range, reverse mode, and the per-machine block
+    /// offset used to co-ordinate multiple computers working on the same number line.
+    /// Prints a summary of the resolved configuration to stdout.
     /// </summary>
     private static void ConfigureSystem()
     {
@@ -313,9 +317,12 @@ internal static class ProgramClass
     }
 
     /// <summary>
-    /// 
+    /// Scans the output directory for existing GapArray log files and returns a dictionary
+    /// whose keys are the block numbers that have already been processed. Block 0 is always
+    /// included so the sieve-seed block is never re-run. When <see cref="_getPreviousWork"/>
+    /// is false the scan is skipped and only block 0 is returned.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>A dictionary mapping completed block numbers to <see langword="true"/>.</returns>
     private static Dictionary<uint, bool> GetPreviousWork()
     {
         var xd = new Dictionary<uint, bool> { { 0, true } };
@@ -350,6 +357,12 @@ internal static class ProgramClass
         return xd;
     }
 
+    /// <summary>
+    /// Returns the next block number from the <see cref="Guided"/> list that is greater than
+    /// or equal to <paramref name="runBlock"/>. This steers the main loop towards blocks that
+    /// are known to contain first-occurrence prime gaps, rather than running every block
+    /// in strict numerical order when <see cref="_runAllBlocksInOrder"/> is false.
+    /// </summary>
     private static uint GuidedBlocks(uint runBlock)
     {
         foreach (var retval in Guided)
@@ -359,6 +372,10 @@ internal static class ProgramClass
         return runBlock;
     }
 
+    /// <summary>
+    /// Returns <see langword="true"/> when bit <paramref name="pos"/> (0 = LSB) of
+    /// <paramref name="b"/> is set.
+    /// </summary>
     private static bool IsBitSet(byte b, int pos)
     {
         return (b & (1 << pos)) != 0;
@@ -483,7 +500,13 @@ internal static class ProgramClass
         }
     }
 
-    ///
+    /// <summary>
+    /// Reads the live .config file to decide whether this instance should stop scheduling
+    /// new blocks. Supports a simple boolean "Stop" key as well as a "Stops" key containing
+    /// per-machine schedules in the form "machinename,offHour,onHour,offDay,onDay" separated
+    /// by semicolons. Returns <see langword="true"/> when the current time falls within a
+    /// stop window for this machine.
+    /// </summary>
     private static bool GetStopValue()
     {
         try
@@ -578,6 +601,11 @@ internal static class ProgramClass
         GapReport.MakeGrid(file, gapBitArray, false);
     }
 
+    /// <summary>
+    /// Copies the current per-gap counts from <paramref name="gapArray"/> into the
+    /// <paramref name="bits"/>-th column of <paramref name="gapBitArray"/>, then resets
+    /// <paramref name="gapArray"/> to zero ready for the next bit-length bucket.
+    /// </summary>
     private static void PutUpGapArray(int[] gapArray, int[,] gapBitArray, int bits)
     {
         for (var j = 0; j < gapArray.Length; j++)
@@ -752,6 +780,11 @@ internal static class ProgramClass
         return taskBuildAnvil;
     }
 
+    /// <summary>
+    /// Removes all completed tasks from <paramref name="tasks"/> then, if the active count
+    /// is still at or above <see cref="_taskLimit"/>, waits up to 200 ms for the first task
+    /// to finish before looping again. Returns as soon as there is capacity for a new task.
+    /// </summary>
     private static void ManageTasks(List<Task> tasks)
     {
         while (true)
@@ -774,6 +807,13 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Marks all multiples of <paramref name="prime"/> in the sieve byte array
+    /// <paramref name="array"/>, starting from <paramref name="nextMark"/>.
+    /// The array stores only odd numbers: byte <c>by</c>, bit <c>bi</c> represents
+    /// the value <c>by*16 + bi*2 + 1</c>. Increments advance by <paramref name="prime"/>
+    /// positions (i.e. by <c>prime/8</c> bytes and <c>prime%8</c> bits) each step.
+    /// </summary>
     private static void MarkAnArray(ulong arraySize, ulong prime, ulong nextMark, byte[] array)
     {
         var by = (nextMark - 1) / 16;
@@ -797,7 +837,14 @@ internal static class ProgramClass
         }
     }
 
-    // the main way I could improve this code is to call it less.  (4B)*(~1e8) right now.
+    // The main way to improve this code is to call it less. (~4B * ~1e8 calls right now.)
+    /// <summary>
+    /// Computes the sieve offset for the prime at position <paramref name="divisorsFillPosition"/>
+    /// in the full divisor list, relative to <paramref name="loopMinCheckedValue"/>, and stores
+    /// it in <paramref name="offsets"/>. The offset is the index of the first odd multiple of
+    /// that prime that falls at or above <paramref name="loopMinCheckedValue"/>.
+    /// Returns the prime value so the caller can track the fill watermark.
+    /// </summary>
     private static uint PopulateDivisor(uint[] fdl, uint[] offsets, ulong loopMinCheckedValue,
         ulong divisorsFillPosition)
     {
@@ -809,6 +856,15 @@ internal static class ProgramClass
         return prime;
     }
 
+    /// <summary>
+    /// Applies a segmented sieve over the working byte array <paramref name="bytes0"/> for
+    /// all primes from index <paramref name="divisorPosition"/> up to (not including)
+    /// <paramref name="divisorsFillPosition"/> in the full divisor list. For each prime the
+    /// method advances two alternating step sizes — <c>p</c> and <c>2p</c> — to skip
+    /// multiples of 3, marking composite bits in <paramref name="bytes0"/>. The write-guard
+    /// check (<c>bytes0[by] != 255</c> before OR-ing) reduces memory-write pressure by ~30 %
+    /// when running multi-threaded.
+    /// </summary>
     private static void SieveProcess(ulong loopMinCheckedValue, uint[] fdl, uint[] offsets, ulong divisorsFillPosition,
         ulong divisorPosition, byte[] bytes0)
     {
@@ -980,6 +1036,13 @@ internal static class ProgramClass
         ProcessThisStuffCompact(fdl, v1, v2, now, offsets, lastCheckedPrime);
     }
 
+    /// <summary>
+    /// Inner loop of the sieve: iterates over each 2^32-wide segment in the range
+    /// [<paramref name="v1"/>, <paramref name="v2"/>), builds the divisor-offset table,
+    /// copies the pre-computed anvil mask, blends in additional anvil layers, applies the
+    /// remaining sieve divisors, then walks the result byte-by-byte to collect primes and
+    /// report gaps. Writes GapPrimes and GapArray log files for each completed segment.
+    /// </summary>
     private static void ProcessThisStuffCompact(uint[] fdl, uint v1, uint v2, string now, uint[] offsets,
         ulong lastCheckedPrime)
     {
@@ -1121,6 +1184,13 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// OR-blends anvil layers 1, 2, and 3 into <paramref name="bytes00"/> using the
+    /// pre-computed byte offsets in <paramref name="notOffsets"/>. Each anvil layer marks
+    /// composites for an additional group of small primes; combining them with the primary
+    /// array pre-eliminates a large fraction of candidates before the main sieve runs.
+    /// Throws if any offset would read outside the bounds of its anvil array.
+    /// </summary>
     private static void BlendIntoArray(byte[] bytes00, ulong[] notOffsets)
     {
         for (var j = 1; j <= 3; j++)
@@ -1148,6 +1218,13 @@ internal static class ProgramClass
         }
     }
 
+    /// <summary>
+    /// Processes the comma-separated block numbers listed in <see cref="_quickCheck"/>
+    /// immediately at startup, bypassing normal block ordering. Used to re-verify or
+    /// fill in specific blocks of interest. When <see cref="_allowQuickCheckBailout"/> is
+    /// true, blocks that already appear in <paramref name="xd"/> are skipped. Waits for
+    /// all quick-check tasks to finish before returning.
+    /// </summary>
     private static void QuickCheck(uint[] fdl, string now, IDictionary<uint, bool> xd)
     {
         if (string.IsNullOrWhiteSpace(_quickCheck)) return;
@@ -1190,6 +1267,13 @@ internal static class ProgramClass
             Console.ReadKey();
     }
 
+    /// <summary>
+    /// Marks all multiples of <paramref name="prime"/> across every segment array in
+    /// <paramref name="arrays"/>. Each array covers a different 16*<paramref name="arraySize"/>-
+    /// wide window of the number line; the starting multiple for each window is calculated
+    /// so that the mark begins at the correct position relative to the window's base address.
+    /// All marking tasks are run in parallel and awaited before returning.
+    /// </summary>
     private static void StartUpSieve(List<byte[]> arrays, int arrayCount, ulong arraySize, ulong prime)
     {
         var arraySize16 = arraySize * 16;
@@ -1223,6 +1307,12 @@ internal static class ProgramClass
 
 public static class LinkTime
 {
+    /// <summary>
+    /// Reads the PE header of <paramref name="assembly"/>'s file to extract the linker
+    /// timestamp embedded at compile time. Returns the time converted to
+    /// <paramref name="target"/> (defaulting to the local time zone), or
+    /// <see cref="DateTime.MinValue"/> if the file is too short to contain a valid header.
+    /// </summary>
     public static DateTime GetLinkerTime(this Assembly assembly
         , TimeZoneInfo? target = null)
     {
