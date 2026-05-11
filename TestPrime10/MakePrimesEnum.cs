@@ -38,7 +38,7 @@ public class MakePrimesEnum : IMakePrimes
             {
                 if (updateProgress++ > 1000)
                 {
-                    Progress = $"Got {ListAllPrimes.Count} primes, last is {p}";
+                    Progress = $"Got {ListAllPrimes.Count:N0} primes, last is {p:N0}";
                     updateProgress = 0;
                 }
                 if (p > two32)

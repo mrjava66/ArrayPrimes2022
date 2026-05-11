@@ -57,6 +57,8 @@ public class MakePrimesSieve : IMakePrimes
 
         var sieveTop = (ulong)(Math.Sqrt(uint.MaxValue) + 1); // last value to sieve through the divisor array.
 
+        Progress = "Starting StartUpSieve with fixed List";
+
         var countPrimeNumber = 0;
         fdl[0] = 2;
         //don't sieve for 2
@@ -68,6 +70,10 @@ public class MakePrimesSieve : IMakePrimes
         }
 
         ulong arraySize16 = baseArrayUnitSize * 16;
+        var updates = 0;
+        var updatesRoll = 20;
+        
+        Progress = $"Starting Sieve with {arrays.Count} arrays of size {baseArrayUnitSize}";
 
         for (var a = 0; a < baseArrayCount; a++)
         for (var l = a == 0 ? 1 : (ulong)0; l < baseArrayUnitSize; l++)
@@ -78,6 +84,15 @@ public class MakePrimesSieve : IMakePrimes
                 if (IsBitSet(arrays[a][l], (int)pos)) continue;
 
                 var prime = (ulong)a * arraySize16 + l * 16 + pos * 2 + 1;
+                if (updates++ > updatesRoll)
+                {
+                    Progress = $"Found {countPrimeNumber:N0} primes, last is {prime:N0}";
+                    updates = 0;
+                    updatesRoll *= 2;
+                    if (updatesRoll > countPrimeNumber)
+                        updatesRoll = countPrimeNumber / 2;
+                }
+
                 fdl[++countPrimeNumber] = (uint)prime;
 
                 if (prime < sieveTop)
@@ -85,6 +100,8 @@ public class MakePrimesSieve : IMakePrimes
                         prime); // don't need to sieve values greater than top.
             }
         }
+
+        Progress = "Finished Making Primes";
     }
 
     private static bool IsBitSet(byte b, int pos)
