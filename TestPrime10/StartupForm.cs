@@ -4,13 +4,22 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace TestPrime10;
 
+/// <summary>
+/// A modal splash dialog displayed while the prime sieve is being built at startup.
+/// It shows a static message and a live progress label that polls
+/// <see cref="MakePrimesSieve.Progress"/> every 250 ms.
+/// </summary>
 public class StartupForm : Form
 {
-    private readonly Label _lblProgress;
     private readonly System.Windows.Forms.Timer _progressTimer;
 
+    /// <summary>
+    /// Initialises the startup form: creates the static message label, the live
+    /// progress label, and starts the polling timer.
+    /// </summary>
     public StartupForm()
     {
+        // Fixed header label shown for the entire duration of startup.
         var lblMessage = new Label
         {
             Text = @"Starting up, please wait...",
@@ -22,7 +31,7 @@ public class StartupForm : Form
         };
 
         // Shows the current value of MakePrimesSieve.Progress as the sieve builds.
-        _lblProgress = new Label
+        var lblProgress = new Label
         {
             Text = MakePrimesSieve.Progress,
             AutoSize = false,
@@ -33,8 +42,9 @@ public class StartupForm : Form
         };
 
         Controls.Add(lblMessage);
-        Controls.Add(_lblProgress);
+        Controls.Add(lblProgress);
 
+        // Non-resizable, centred, no title-bar controls — keeps focus on the message.
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         ControlBox = false;
@@ -44,7 +54,7 @@ public class StartupForm : Form
 
         // Poll MakePrimesSieve.Progress every 250 ms and update the label.
         _progressTimer = new System.Windows.Forms.Timer { Interval = 250 };
-        _progressTimer.Tick += (_, _) => _lblProgress.Text = MakePrimesSieve.Progress;
+        _progressTimer.Tick += (_, _) => lblProgress.Text = MakePrimesSieve.Progress;
         _progressTimer.Start();
     }
 
@@ -56,6 +66,10 @@ public class StartupForm : Form
         base.OnFormClosed(e);
     }
 
+    /// <summary>
+    /// Overrides <see cref="Form.Text"/> to suppress the nullable warning on
+    /// the title-bar string assignment.
+    /// </summary>
     [AllowNull] public sealed override string Text
     {
         get => base.Text;
