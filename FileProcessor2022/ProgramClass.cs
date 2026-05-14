@@ -1,5 +1,6 @@
 ﻿using System.Configuration;
 using System.Text;
+#pragma warning disable JMA001
 
 namespace FileProcessor2022;
 
@@ -116,11 +117,20 @@ internal static class ProgramClass
                 }
                 catch (Exception? ex)
                 {
-                    Console.Error.WriteLine("With file='" + file + "'");
-                    while (ex != null)
+                    if ((ex?.Message.Contains("The process cannot access the file") ?? false)
+                        &&
+                        (ex?.Message.Contains("because it is being used by another process") ?? false))
                     {
-                        Console.Error.WriteLine(ex);
-                        ex = ex.InnerException;
+                        Console.Error.WriteLine("File in use with file='" + file + "'");
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine("With file='" + file + "'");
+                        while (ex != null)
+                        {
+                            Console.Error.WriteLine(ex);
+                            ex = ex.InnerException;
+                        }
                     }
 
                     Console.Error.WriteLine("Continuing to the next file.");
@@ -170,8 +180,21 @@ internal static class ProgramClass
                     Console.WriteLine($"{val.GapType},{val.GapSize},{val.StartPrime},{endPrime}");
                 }
             }
-            if (showNumPrimesLines)
+
+            //if you are running one thread in ArrayPrimes, you might not have a gap.
+            //So, this code sets the last continuous at the last checked prime.
+            if (lastContinuousCheck == 0)
+            {
+                lastContinuousCheck = lastStartPrime;
+                lastContinuousCheckMsg =
+                    $"LastContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}";
                 Console.WriteLine(lastContinuousCheckMsg);
+            }
+            else if (showNumPrimesLines)
+            {
+                //this makes finding the last continuous easier in the output.
+                Console.WriteLine(lastContinuousCheckMsg);
+            }
 
             // Accumulate twin-prime and related gap totals in powers-of-two level buckets.
             // 'bits' tracks which power-of-two bucket we are in (starting at 2^33 blocks).
@@ -379,7 +402,7 @@ internal static class ProgramClass
             var line6 = "";
             var line30 = "";
             var line210 = "";
-            var aFileLines = FileExtension.GetReadAllLines(aFile, 200, false);
+            var aFileLines = FileExtension.GetReadAllLines(aFile, 161, false);
             foreach (var aline in aFileLines)
                 try
                 {
