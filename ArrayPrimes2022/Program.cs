@@ -7,9 +7,19 @@ const string appGuid = "ArrayPrimes.4R2VY2PE7UTZ9FML6QA3CN5D";
 var start = DateTime.Now;
 Console.WriteLine("Hello, World!");
 
-// Use a global mutex to ensure only one instance of this application runs at a time.
-using (var mutex = new Mutex(false, "Global\\" + appGuid))
+// When --allow-multiple-instances is passed, skip the global mutex check so
+// more than one copy of this process can run concurrently.
+var allowMultiple = args.Contains("--allow-multiple-instances");
+
+if (allowMultiple)
 {
+    // Mutex bypassed — multiple instances permitted.
+    ProgramClass.MainProgram();
+}
+else
+{
+    // Use a global mutex to ensure only one instance of this application runs at a time.
+    using var mutex = new Mutex(false, "Global\\" + appGuid);
     // WaitOne(0) returns immediately: true if we acquired the mutex, false if another instance holds it.
     if (!mutex.WaitOne(0, false))
         Console.WriteLine("Application is already Running. Exiting.");
