@@ -187,7 +187,7 @@ internal static class ProgramClass
             {
                 lastContinuousCheck = lastStartPrime;
                 lastContinuousCheckMsg =
-                    $"LastContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}";
+                    $"ContinuousCheck,{lastContinuousCheck},{lastContinuousCheck / uint.MaxValue / 1024},{lastContinuousCheck / uint.MaxValue}";
                 Console.WriteLine(lastContinuousCheckMsg);
             }
             else if (showNumPrimesLines)

@@ -1,1 +1,5 @@
-FileProcessor2022.exe >"..\..\..\..\fp\fp.%date:~10,4%_%date:~4,2%_%date:~7,2%__%time:~0,2%_%time:~3,2%_%time:~6,2%.log" 2>fp.err
+set NOW=..\..\..\..\fp\fp.%date:~10,4%_%date:~4,2%_%date:~7,2%__%time:~0,2%_%time:~3,2%_%time:~6,2%.log
+
+FileProcessor2022.exe > "%NOW%" 2> fp.err
+
+"C:\Program Files\Notepad++\notepad++.exe" "%NOW%"
