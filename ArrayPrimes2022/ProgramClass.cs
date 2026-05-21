@@ -207,7 +207,7 @@ internal static class ProgramClass
     /// offset used to co-ordinate multiple computers working on the same number line.
     /// Prints a summary of the resolved configuration to stdout.
     /// </summary>
-    private static void ConfigureSystem()
+    private static void LoadConfiguration()
     {
         var bigArrayString = ConfigurationManager.AppSettings["BigArray"] ?? "true";
         // ReSharper disable once SimplifyConditionalTernaryExpression
@@ -391,7 +391,7 @@ internal static class ProgramClass
         try
         {
             var now = DateTime.UtcNow.ToString("u").Replace(" ", ".").Replace(":", ".");
-            ConfigureSystem();
+            LoadConfiguration();
 
             var start = DateTime.Now;
             var taskBuildAnvil = StartAnvilBuildTask();
@@ -424,7 +424,7 @@ internal static class ProgramClass
                     if (xd.Keys.Contains(value))
                         continue;
 
-                    ManageTasks(tasks);
+                    PruneCompletedTasks(tasks);
 
                     EnforceTaskStartSpacing();
                     var val = value;
@@ -468,12 +468,12 @@ internal static class ProgramClass
                     continue;
                 }
 
-                ManageTasks(tasks);
+                PruneCompletedTasks(tasks);
 
-                if (GetStopValue()) 
+                if (ShouldStop()) 
                     break;
 
-                MaintainPreviousWork(ref xd, firstBlock, runBlock, lastBlock, minBlock, blockAssignmentSize);
+                RefreshCompletedBlocksCache(ref xd, firstBlock, runBlock, lastBlock, minBlock, blockAssignmentSize);
 
                 EnforceTaskStartSpacing();
                 var taskE = Task.Factory.StartNew(() => SieveNumberBlocks(fullDivisorList, minvalue, maxvalue, now));
@@ -483,7 +483,7 @@ internal static class ProgramClass
                     xd.TryAdd(i, true);
             }
 
-            WaitForTasksCompletion(tasks);
+            DrainAllTasks(tasks);
 
             Console.WriteLine($"Tasks to complete. {tasks.Count} left. {DateTime.Now}");
         }
@@ -500,10 +500,10 @@ internal static class ProgramClass
     // Waits for all tasks in the provided list to complete, while
     // printing the number of remaining tasks and the current time
     // each time one has completed. The method also calls
-    // <see cref="ManageTasks"/> to perform any necessary task management
+    // <see cref="PruneCompletedTasks"/> to perform any necessary task management
     // operations and decrements the <see cref="_taskLimit"/> as
     // it runs down the list.
-    private static void WaitForTasksCompletion(List<Task> tasks)
+    private static void DrainAllTasks(List<Task> tasks)
     {
         //
         _taskLimit = tasks.Count + 1;
@@ -516,7 +516,7 @@ internal static class ProgramClass
                 lastOutput = tasks.Count;
                 Console.WriteLine($"Waiting for tasks to complete. {tasks.Count} left. {DateTime.Now}");
             }
-            ManageTasks(tasks);
+            PruneCompletedTasks(tasks);
             _taskLimit--;
         }
     }
@@ -528,7 +528,7 @@ internal static class ProgramClass
     /// by semicolons. Returns <see langword="true"/> when the current time falls within a
     /// stop window for this machine.
     /// </summary>
-    private static bool GetStopValue()
+    private static bool ShouldStop()
     {
         try
         {
@@ -647,7 +647,7 @@ internal static class ProgramClass
     /// <param name="lastBlock"></param>
     /// <param name="minBlock"></param>
     /// <param name="blockAssignmentSize"></param>
-    private static void MaintainPreviousWork(ref Dictionary<uint, bool> xd, uint firstBlock, uint runBlock,
+    private static void RefreshCompletedBlocksCache(ref Dictionary<uint, bool> xd, uint firstBlock, uint runBlock,
         uint lastBlock, uint minBlock, uint blockAssignmentSize)
     {
         if (_getPreviousWorkTime > DateTime.Now)
@@ -806,7 +806,7 @@ internal static class ProgramClass
     /// is still at or above <see cref="_taskLimit"/>, waits up to 200 ms for the first task
     /// to finish before looping again. Returns as soon as there is capacity for a new task.
     /// </summary>
-    private static void ManageTasks(List<Task> tasks)
+    private static void PruneCompletedTasks(List<Task> tasks)
     {
         while (true)
         {
@@ -866,7 +866,7 @@ internal static class ProgramClass
     /// that prime that falls at or above <paramref name="loopMinCheckedValue"/>.
     /// Returns the prime value so the caller can track the fill watermark.
     /// </summary>
-    private static uint PopulateDivisor(uint[] fdl, uint[] offsets, ulong loopMinCheckedValue,
+    private static uint ComputeDivisorOffset(uint[] fdl, uint[] offsets, ulong loopMinCheckedValue,
         ulong divisorsFillPosition)
     {
         var prime = fdl[divisorsFillPosition];
@@ -1097,7 +1097,7 @@ internal static class ProgramClass
             ulong divisorsFillPosition = 1; // don't use prime#0 (2).
             while (divisorFillLevel < loopMaxDivisor)
             {
-                divisorFillLevel = PopulateDivisor(fdl, offsets, loopMinCheckedValue, divisorsFillPosition);
+                divisorFillLevel = ComputeDivisorOffset(fdl, offsets, loopMinCheckedValue, divisorsFillPosition);
                 divisorsFillPosition++;
             }
 
@@ -1269,7 +1269,7 @@ internal static class ProgramClass
 
             xd.TryAdd(quickCheckBlock, true);
 
-            ManageTasks(tasks);
+            PruneCompletedTasks(tasks);
 
             EnforceTaskStartSpacing();
             var taskE = Task.Factory.StartNew(() =>
@@ -1280,7 +1280,7 @@ internal static class ProgramClass
         while (tasks.Count > 0)
         {
             tasks[0].Wait();
-            ManageTasks(tasks);
+            PruneCompletedTasks(tasks);
         }
 
         Console.WriteLine("Done with quickCheck.  Press key to continue.");
