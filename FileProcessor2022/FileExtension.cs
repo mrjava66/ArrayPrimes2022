@@ -1,5 +1,4 @@
-﻿#pragma warning disable JMA001
-namespace FileProcessor2022;
+﻿namespace FileProcessor2022;
 
 /// <summary>
 /// File-access helpers used throughout <see cref="ProgramClass"/>.

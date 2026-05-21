@@ -1,6 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-#pragma warning disable JMC001
-#pragma warning disable JMA001
 
 namespace TestPrime10;
 

@@ -1,6 +1,4 @@
 ﻿using System.Text;
-#pragma warning disable JMA001
-#pragma warning disable JMC001
 
 namespace ArrayPrimes2022;
 

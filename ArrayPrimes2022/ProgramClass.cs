@@ -1,6 +1,6 @@
 using System.Configuration;
 using System.Reflection;
-#pragma warning disable JMA001
+using ArrayPrimes2022.Sieve;
 
 namespace ArrayPrimes2022;
 
@@ -100,6 +100,10 @@ internal static class ProgramClass
 
     private static readonly TimeSpan GetPreviousWorkCadence = new(1, 0, 0);
     private static DateTime _getPreviousWorkTime = DateTime.Now + GetPreviousWorkCadence;
+    private static readonly ISieveBackend CpuSieveBackend = new CpuSieveBackend(Two28);
+    private static readonly ISieveBackend GpuSieveBackend = new ComputeSharpSieveBackend();
+    private static ISieveBackend _activeSieveBackend = CpuSieveBackend;
+    private static bool _gpuFallbackTriggered;
 
     static ProgramClass()
     {
@@ -274,6 +278,16 @@ internal static class ProgramClass
         // ReSharper disable once SimplifyConditionalTernaryExpression
         _allowQuickCheckBailout = didParse ? val : true;
 
+        var sieveBackendSetting = (ConfigurationManager.AppSettings["SieveBackend"] ?? "gpu").ToLowerInvariant();
+        _activeSieveBackend = sieveBackendSetting switch
+        {
+            "cpu" => CpuSieveBackend,
+            "gpu" => GpuSieveBackend,
+            "computesharp" => GpuSieveBackend,
+            _ => GpuSieveBackend
+        };
+        _gpuFallbackTriggered = false;
+
         var minvalueString = (ConfigurationManager.AppSettings["MinValue"] ?? "").Replace(",", "");
 
         if (ulong.TryParse(minvalueString, out var ulongResult))
@@ -308,6 +322,7 @@ internal static class ProgramClass
         var quickCheckReport = string.IsNullOrWhiteSpace(_quickCheck) ? "_blank_" : _quickCheck;
         Console.WriteLine($"BuildDate={linkTimeLocal},\n" +
                           $"BigArray={BigArray},\n" +
+                          $"SieveBackend={_activeSieveBackend.Name},\n" +
                           $"GetPreviousWork={_getPreviousWork},\n" +
                           $"LessRamMemory={_lessRamMemory},\n" +
                           $"basePath={_basePath},\n" +
@@ -331,7 +346,7 @@ internal static class ProgramClass
 
         if (!_getPreviousWork)
         {
-            Console.WriteLine($"Found Existing work.  Files={xd.Count}. Not looking.{DateTime.Now}");
+            Console.WriteLine($"Found Existing work. Files={xd.Count}. Not looking. {DateTime.Now}");
             return xd;
         }
 
@@ -354,7 +369,7 @@ internal static class ProgramClass
             if (!xd.Keys.Contains(intInt)) xd.TryAdd(intInt, true);
         }
 
-        Console.WriteLine($"Found Existing work.  Files={xd.Count}.{DateTime.Now}");
+        Console.WriteLine($"Found Existing work. Files={xd.Count}. {DateTime.Now}");
 
         return xd;
     }
@@ -884,7 +899,7 @@ internal static class ProgramClass
     /// method advances two alternating step sizes — <c>p</c> and <c>2p</c> — to skip
     /// multiples of 3, marking composite bits in <paramref name="bytes0"/>. The write-guard
     /// check (<c>bytes0[by] != 255</c> before OR-ing) reduces memory-write pressure by ~30 %
-    /// when running multi-threaded.
+    /// when running multithreaded.
     /// </summary>
     private static void SieveProcess(ulong loopMinCheckedValue, uint[] fdl, uint[] offsets, ulong divisorsFillPosition,
         ulong divisorPosition, byte[] bytes0)
@@ -937,95 +952,21 @@ internal static class ProgramClass
         }
         */
 
-        for (; divisorPosition < divisorsFillPosition; divisorPosition++)
+        try
         {
-            var p = fdl[divisorPosition];
-            var o = offsets[divisorPosition];
-            var primeByte = p / 8;
-            var primeBit = (int)p % 8;
-            var offsetByte = o / 8;
-            var offsetBit = (int)o % 8;
-
-            //It's still possible this optimizes better.(It uses fewer fields and thus just registers more.)
-            /*
-            while (offsetByte < Two28)
+            _activeSieveBackend.Execute(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
+        }
+        catch (Exception ex) when (!ReferenceEquals(_activeSieveBackend, CpuSieveBackend))
+        {
+            if (!_gpuFallbackTriggered)
             {
-                //it is quicker to just check the whole byte, and only when available, check the bit.
-                if (bytes0[offsetByte] != 255)
-                {
-                    var bib = (byte)(1 << offsetBit);
-                    //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
-                    if ((bytes0[offsetByte] & bib) == 0)
-                        bytes0[offsetByte] |= bib;
-                }
-
-                offsetByte += primeByte;
-                offsetBit += primeBit;
-
-                if (offsetBit >= 8)
-                {
-                    offsetBit -= 8;
-                    offsetByte++;
-                }
-            }
-            */
-
-            //alternate moving p and 2p bits down the array to skip over divisible by 3 bits.
-            var primeByteOn = primeByte + primeByte;
-            var primeBitOn = primeBit + primeBit;
-            if (primeBitOn >= 8)
-            {
-                primeBitOn -= 8;
-                primeByteOn++;
+                Console.Error.WriteLine($"Sieve backend '{_activeSieveBackend.Name}' failed. Falling back to CPU.");
+                Console.Error.WriteLine(ex.Message);
+                _gpuFallbackTriggered = true;
             }
 
-            var markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
-            if (markLoc % 3 == 0)
-            {
-                offsetByte += primeByte;
-                offsetBit += primeBit;
-                if (offsetBit >= 8)
-                {
-                    offsetBit -= 8;
-                    offsetByte++;
-                }
-
-                markLoc = loopMinCheckedValue + 16 * offsetByte + 2 * (ulong)offsetBit + 1;
-            }
-
-            var onOff = (2 * p + markLoc) % 3 == 0;
-
-            //this is the main loop, this gets all the action.  ~2^32*(0.5*2^32/log(2^32)) entries and ( 2^32*(0.5*(2^32)/log(2^32)) )*( ((2^32)/log(2^32))*(1/2)*(1/3) ) cycles.
-            while (offsetByte < Two28)
-            {
-                //it is quicker to just check the whole byte, and only when available, check the bit.
-                if (bytes0[offsetByte] != 255)
-                {
-                    var bib = (byte)(1 << offsetBit);
-                    //when we multi-thread, write-time is much longer than read-time.  This check makes the app run about 30% faster.
-                    if ((bytes0[offsetByte] & bib) == 0)
-                        bytes0[offsetByte] |= bib;
-                }
-
-                if (onOff)
-                {
-                    offsetByte += primeByteOn;
-                    offsetBit += primeBitOn;
-                }
-                else
-                {
-                    offsetByte += primeByte;
-                    offsetBit += primeBit;
-                }
-
-                if (offsetBit >= 8)
-                {
-                    offsetBit -= 8;
-                    offsetByte++;
-                }
-
-                onOff = !onOff;
-            }
+            _activeSieveBackend = CpuSieveBackend;
+            CpuSieveBackend.Execute(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
         }
     }
 

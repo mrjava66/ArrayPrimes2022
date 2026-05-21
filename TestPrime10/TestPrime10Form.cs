@@ -1,6 +1,4 @@
 using System.Text;
-#pragma warning disable JMA001
-#pragma warning disable JMC001
 #pragma warning disable IDE1006
 #pragma warning disable IDE0028
 #pragma warning disable IDE0057

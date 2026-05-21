@@ -1,6 +1,5 @@
 ﻿using System.Configuration;
 using System.Text;
-#pragma warning disable JMA001
 
 namespace FileProcessor2022;
 
