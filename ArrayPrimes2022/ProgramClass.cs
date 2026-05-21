@@ -470,7 +470,8 @@ internal static class ProgramClass
 
                 ManageTasks(tasks);
 
-                if (GetStopValue()) break;
+                if (GetStopValue()) 
+                    break;
 
                 MaintainPreviousWork(ref xd, firstBlock, runBlock, lastBlock, minBlock, blockAssignmentSize);
 
@@ -482,13 +483,7 @@ internal static class ProgramClass
                     xd.TryAdd(i, true);
             }
 
-            //wait for all tasks to complete.
-            while (tasks.Count > 0)
-            {
-                Console.WriteLine($"Waiting for tasks to complete. {tasks.Count} left. {DateTime.Now}");
-                _taskLimit = tasks.Count - 1;
-                ManageTasks(tasks);
-            }
+            WaitForTasksCompletion(tasks);
 
             Console.WriteLine($"Tasks to complete. {tasks.Count} left. {DateTime.Now}");
         }
@@ -499,6 +494,30 @@ internal static class ProgramClass
                 Console.Error.WriteLine(ex);
                 ex = ex.InnerException;
             }
+        }
+    }
+
+    // Waits for all tasks in the provided list to complete, while
+    // printing the number of remaining tasks and the current time
+    // each time one has completed. The method also calls
+    // <see cref="ManageTasks"/> to perform any necessary task management
+    // operations and decrements the <see cref="_taskLimit"/> as
+    // it runs down the list.
+    private static void WaitForTasksCompletion(List<Task> tasks)
+    {
+        //
+        _taskLimit = tasks.Count + 1;
+        var lastOutput = int.MaxValue;
+        //wait for all tasks to complete.
+        while (tasks.Count > 0)
+        {
+            if (tasks.Count != lastOutput)
+            {
+                lastOutput = tasks.Count;
+                Console.WriteLine($"Waiting for tasks to complete. {tasks.Count} left. {DateTime.Now}");
+            }
+            ManageTasks(tasks);
+            _taskLimit--;
         }
     }
 
