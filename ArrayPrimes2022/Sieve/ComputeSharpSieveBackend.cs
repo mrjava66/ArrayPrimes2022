@@ -5,7 +5,9 @@ namespace ArrayPrimes2022.Sieve;
 
 internal sealed class ComputeSharpSieveBackend : ISieveBackend
 {
-    private const string GraphicsDriversRegistryPath = @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\TdrDelay";
+    private const string GraphicsDriversRegistryPath = @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers";
+    private const string GraphicsDriverKeyName = "TdrDelay";
+    //this needs to be more than the expected time of the longest compute shader dispatch to prevent Windows from killing the GPU driver during long computations. Setting it to 88 seconds should be more than enough for our use case, but it can be adjusted if needed.
 
     private static readonly GraphicsDevice Device = GraphicsDevice.GetDefault();
 
@@ -23,7 +25,8 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                               $"\n\twith {device.SharedMemorySize:N0} bytes of shared memory" +
                               $"\n\twith {device.WavefrontSize} max threads per group");
         }
-        //TrySetGraphicsDriversRegistryValue();
+
+        TrySetGraphicsDriversRegistryValue();
         Device.DeviceLost += Device_DeviceLost;
         Console.WriteLine($"Chosen device: {Device.Name}:{Device.Luid}");
     }
@@ -33,21 +36,26 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         try
         {
             using var isKey = Registry.LocalMachine.OpenSubKey(GraphicsDriversRegistryPath);
-            if (isKey != null && isKey.GetValue(string.Empty) is int currentValue && currentValue >= 8)
+            var keyObjectValue = isKey?.GetValue(GraphicsDriverKeyName);
+            var currentValue = keyObjectValue as int?;
+
+            if ((currentValue ?? 0) >= 88)
                 return;
 
-            using var key = Registry.LocalMachine.CreateSubKey(GraphicsDriversRegistryPath, writable: true);
-            key?.SetValue(string.Empty, 8, RegistryValueKind.DWord);
+            Console.WriteLine($"Updating HKLM\\{GraphicsDriversRegistryPath}\\{GraphicsDriverKeyName} to 88 current value = {currentValue ?? -1})");
+            using RegistryKey key = Registry.LocalMachine.CreateSubKey(GraphicsDriversRegistryPath, writable: true);
+            key.SetValue(GraphicsDriverKeyName, 88, RegistryValueKind.DWord);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Unable to update HKLM\\{GraphicsDriversRegistryPath}: {ex.Message}");
+            Console.Error.WriteLine($"Unable to update HKLM\\{GraphicsDriversRegistryPath}: {ex.Message}");
         }
     }
 
-    private void Device_DeviceLost(object? sender, DeviceLostEventArgs e)
+    private static void Device_DeviceLost(object? sender, DeviceLostEventArgs e)
     {
-        Console.WriteLine("Device lost: " + e.Reason.ToString());
+        Console.WriteLine("Device lost: " + e.Reason);
     }
 
     /// <summary>
@@ -122,48 +130,34 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         var sieveWords = new uint[sieveBytes.Length / sizeof(uint)];
         Buffer.BlockCopy(sieveBytes, 0, sieveWords, 0, sieveBytes.Length);
 
-        using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);
-        var sieveLength = sieveBuffer.Length;
-        using var startByteBuffer = Device.AllocateReadOnlyBuffer(startBytes);
-        using var startBitBuffer = Device.AllocateReadOnlyBuffer(startBits);
-        using var shortStepByteBuffer = Device.AllocateReadOnlyBuffer(shortStepBytes);
-        using var shortStepBitBuffer = Device.AllocateReadOnlyBuffer(shortStepBits);
-        using var longStepByteBuffer = Device.AllocateReadOnlyBuffer(longStepBytes);
-        using var longStepBitBuffer = Device.AllocateReadOnlyBuffer(longStepBits);
-        using var startsWithLongStepBuffer = Device.AllocateReadOnlyBuffer(startsWithLongStep);
+        lock (Device)
+        {
+            using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);
+            var sieveLength = sieveBuffer.Length;
+            using var startBytesBuffer = Device.AllocateReadOnlyBuffer(startBytes);
+            using var startBitsBuffer = Device.AllocateReadOnlyBuffer(startBits);
+            using var shortStepByteBuffer = Device.AllocateReadOnlyBuffer(shortStepBytes);
+            using var shortStepBitBuffer = Device.AllocateReadOnlyBuffer(shortStepBits);
+            using var longStepByteBuffer = Device.AllocateReadOnlyBuffer(longStepBytes);
+            using var longStepBitBuffer = Device.AllocateReadOnlyBuffer(longStepBits);
+            using var startsWithLongStepBuffer = Device.AllocateReadOnlyBuffer(startsWithLongStep);
 
-        Device.For(divisorCount, new ComputeSharpSieveShader(
-            sieveBuffer,
-            startByteBuffer,
-            startBitBuffer,
-            shortStepByteBuffer,
-            shortStepBitBuffer,
-            longStepByteBuffer,
-            longStepBitBuffer,
-            startsWithLongStepBuffer,
-            divisorCount,
-            sieveLength));
+            Device.For(divisorCount, new ComputeSharpSieveShader(
+                sieveBuffer,
+                startBytesBuffer,
+                startBitsBuffer,
+                shortStepByteBuffer,
+                shortStepBitBuffer,
+                longStepByteBuffer,
+                longStepBitBuffer,
+                startsWithLongStepBuffer,
+                divisorCount,
+                sieveLength));
 
-        sieveBuffer.CopyTo(sieveWords);
+            sieveBuffer.CopyTo(sieveWords);
+        }
 
         Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
-        
-        /*
-        //for (var i = 0; i < sieveBytes.Length; i++) sieveBytes[i] = (byte)sieveWords[i];
-        for (var i = 0; i < sieveBuffer.Length; i++)
-        {
-            var sieveWord = sieveBuffer[i];
-            var sieveByteIndex = i * sizeof(uint);
-            if (sieveByteIndex < sieveBytes.Length)
-            sieveBytes[sieveByteIndex] = (byte)(sieveWord & 0xFF);
-            if (sieveByteIndex + 1 < sieveBytes.Length)
-            sieveBytes[sieveByteIndex + 1] = (byte)((sieveWord >> 8) & 0xFF);
-            if (sieveByteIndex + 2 < sieveBytes.Length)
-            sieveBytes[sieveByteIndex + 2] = (byte)((sieveWord >> 16) & 0xFF);
-            if (sieveByteIndex + 3 < sieveBytes.Length)
-            sieveBytes[sieveByteIndex + 3] = (byte)((sieveWord >> 24) & 0xFF);
-        }
-        */
     }
 }
 
@@ -223,8 +217,8 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
         while (offsetByte < sieveLength)
         {
             var bitMask = 1u << offsetBit;
-            //if ((sieveBytes[offsetByte] & bitMask) == 0)
-                Hlsl.InterlockedOr(ref sieveBytes[offsetByte], bitMask);
+            //if ((sieveBytes[offsetByte] & bitMask) == 0) // this does not help.
+            Hlsl.InterlockedOr(ref sieveBytes[offsetByte], bitMask);
 
             if (useLongStep)
             {
