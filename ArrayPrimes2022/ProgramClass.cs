@@ -485,7 +485,7 @@ internal static class ProgramClass
 
                 PruneCompletedTasks(tasks);
 
-                if (ShouldStop()) 
+                if (ShouldStop())
                     break;
 
                 RefreshCompletedBlocksCache(ref xd, firstBlock, runBlock, lastBlock, minBlock, blockAssignmentSize);
@@ -958,6 +958,13 @@ internal static class ProgramClass
         }
         catch (Exception ex) when (!ReferenceEquals(_activeSieveBackend, CpuSieveBackend))
         {
+            var ex0 = ex;
+            while (ex0 != null)
+            {
+                Console.Error.WriteLine($"Sieve backend error: {ex0.Message}");
+                ex0 = ex0.InnerException;
+            }
+
             if (!_gpuFallbackTriggered)
             {
                 Console.Error.WriteLine($"Sieve backend '{_activeSieveBackend.Name}' failed. Falling back to CPU.");
@@ -967,6 +974,15 @@ internal static class ProgramClass
 
             _activeSieveBackend = CpuSieveBackend;
             CpuSieveBackend.Execute(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
+        }
+        catch (Exception ex)
+        {
+            var ex0 = ex;
+            while (ex0 != null)
+            {
+                Console.Error.WriteLine($"Sieve backend error: {ex0.Message}");
+                ex0 = ex0.InnerException;
+            }
         }
     }
 

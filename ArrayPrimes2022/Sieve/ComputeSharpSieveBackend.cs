@@ -1,13 +1,55 @@
 using ComputeSharp;
+using Microsoft.Win32;
 
 namespace ArrayPrimes2022.Sieve;
 
 internal sealed class ComputeSharpSieveBackend : ISieveBackend
 {
+    private const string GraphicsDriversRegistryPath = @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\TdrDelay";
+
     private static readonly GraphicsDevice Device = GraphicsDevice.GetDefault();
 
     public string Name => "ComputeSharp";
 
+    public ComputeSharpSieveBackend()
+    {
+        //TrySetGraphicsDriversRegistryValue();
+        Device.DeviceLost += Device_DeviceLost;
+    }
+
+    private static void TrySetGraphicsDriversRegistryValue()
+    {
+        try
+        {
+            using var isKey = Registry.LocalMachine.OpenSubKey(GraphicsDriversRegistryPath);
+            if (isKey != null && isKey.GetValue(string.Empty) is int currentValue && currentValue >= 8)
+                return;
+
+            using var key = Registry.LocalMachine.CreateSubKey(GraphicsDriversRegistryPath, writable: true);
+            key?.SetValue(string.Empty, 8, RegistryValueKind.DWord);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Unable to update HKLM\\{GraphicsDriversRegistryPath}: {ex.Message}");
+        }
+    }
+
+    private void Device_DeviceLost(object? sender, DeviceLostEventArgs e)
+    {
+        Console.WriteLine("Device lost: " + e.Reason.ToString());
+    }
+
+    /// <summary>
+    /// Since the sieve is not sent to the GPU as bytes but as 32-bit uints, we need to convert the byte offsets
+    /// and steps into uint offsets and steps. This method prepares the data for the GPU and then launches the
+    /// compute shader to perform the sieving in parallel on the GPU.
+    /// </summary>
+    /// <param name="loopMinCheckedValue"></param>
+    /// <param name="fullDivisorList"></param>
+    /// <param name="offsets"></param>
+    /// <param name="divisorsFillPosition"></param>
+    /// <param name="divisorPosition"></param>
+    /// <param name="sieveBytes"></param>
     public void Execute(ulong loopMinCheckedValue, uint[] fullDivisorList, uint[] offsets, ulong divisorsFillPosition,
         ulong divisorPosition, byte[] sieveBytes)
     {
@@ -27,31 +69,31 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         {
             var p = fullDivisorList[divisorPosition];
             var o = offsets[divisorPosition];
-            var primeByte = (int)(p / 8);
-            var primeBit = (int)(p % 8);
-            var offsetByte = (int)(o / 8);
-            var offsetBit = (int)o % 8;
+            var primeByte = (int)(p / 32);
+            var primeBit = (int)(p % 32);
+            var offsetByte = (int)(o / 32);
+            var offsetBit = (int)o % 32;
 
             var primeByteOn = primeByte + primeByte;
             var primeBitOn = primeBit + primeBit;
-            if (primeBitOn >= 8)
+            if (primeBitOn >= 32)
             {
-                primeBitOn -= 8;
+                primeBitOn -= 32;
                 primeByteOn++;
             }
 
-            var markLoc = loopMinCheckedValue + 16UL * (ulong)offsetByte + 2UL * (ulong)offsetBit + 1;
+            var markLoc = loopMinCheckedValue + 64UL * (ulong)offsetByte + 2UL * (ulong)offsetBit + 1;
             if (markLoc % 3 == 0)
             {
                 offsetByte += primeByte;
                 offsetBit += primeBit;
-                if (offsetBit >= 8)
+                if (offsetBit >= 32)
                 {
-                    offsetBit -= 8;
+                    offsetBit -= 32;
                     offsetByte++;
                 }
 
-                markLoc = loopMinCheckedValue + 16UL * (ulong)offsetByte + 2UL * (ulong)offsetBit + 1;
+                markLoc = loopMinCheckedValue + 64UL * (ulong)offsetByte + 2UL * (ulong)offsetBit + 1;
             }
 
             var onOff = (2 * p + markLoc) % 3 == 0;
@@ -65,9 +107,11 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
             startsWithLongStep[i] = onOff ? 1 : 0;
         }
 
-        var sieveWords = Array.ConvertAll(sieveBytes, static b => (uint)b);
+        var sieveWords = new uint[sieveBytes.Length / sizeof(uint)];
+        Buffer.BlockCopy(sieveBytes, 0, sieveWords, 0, sieveBytes.Length);
 
         using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);
+        var sieveLength = sieveBuffer.Length;
         using var startByteBuffer = Device.AllocateReadOnlyBuffer(startBytes);
         using var startBitBuffer = Device.AllocateReadOnlyBuffer(startBits);
         using var shortStepByteBuffer = Device.AllocateReadOnlyBuffer(shortStepBytes);
@@ -86,12 +130,12 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
             longStepBitBuffer,
             startsWithLongStepBuffer,
             divisorCount,
-            sieveBytes.Length));
+            sieveLength));
 
         sieveBuffer.CopyTo(sieveWords);
+        Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
 
-        for (var i = 0; i < sieveBytes.Length; i++)
-            sieveBytes[i] = (byte)sieveWords[i];
+        //for (var i = 0; i < sieveBytes.Length; i++) sieveBytes[i] = (byte)sieveWords[i];
     }
 }
 
@@ -151,8 +195,14 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
 
             while (offsetByte < sieveLength)
             {
-                var bitMask = 1u << offsetBit;
-                sieveBytes[offsetByte] |= bitMask;
+                // If all the numbers in the current word is already marked as composite, we can skip marking bits within this word.
+                if (sieveBytes[offsetByte] != uint.MaxValue)
+                {
+                    // Make the bit mask for the current offset bit and mark the corresponding bit in the sieve if it's not already marked.
+                    var bitMask = 1u << offsetBit;
+                    if ((sieveBytes[offsetByte] & bitMask) == 0)
+                        sieveBytes[offsetByte] |= bitMask;
+                }
 
                 if (useLongStep)
                 {
@@ -165,9 +215,9 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
                     offsetBit += shortStepBit;
                 }
 
-                if (offsetBit >= 8)
+                if (offsetBit >= 32)
                 {
-                    offsetBit -= 8;
+                    offsetBit -= 32;
                     offsetByte++;
                 }
 
