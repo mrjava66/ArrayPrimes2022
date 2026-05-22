@@ -109,13 +109,14 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
             var onOff = (2 * p + markLoc) % 3 == 0;
 
-            startBytes[i] = offsetByte;
-            startBits[i] = offsetBit;
-            shortStepBytes[i] = primeByte;
-            shortStepBits[i] = primeBit;
-            longStepBytes[i] = primeByteOn;
-            longStepBits[i] = primeBitOn;
-            startsWithLongStep[i] = onOff ? 1 : 0;
+            var arrayLoc = divisorCount - 1 - i; // Reverse order to improve memory access patterns on the GPU
+            startBytes[arrayLoc] = offsetByte;
+            startBits[arrayLoc] = offsetBit;
+            shortStepBytes[arrayLoc] = primeByte;
+            shortStepBits[arrayLoc] = primeBit;
+            longStepBytes[arrayLoc] = primeByteOn;
+            longStepBits[arrayLoc] = primeBitOn;
+            startsWithLongStep[arrayLoc] = onOff ? 1 : 0;
         }
 
         var sieveWords = new uint[sieveBytes.Length / sizeof(uint)];
@@ -222,7 +223,8 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
         while (offsetByte < sieveLength)
         {
             var bitMask = 1u << offsetBit;
-            Hlsl.InterlockedOr(ref sieveBytes[offsetByte], bitMask);
+            //if ((sieveBytes[offsetByte] & bitMask) == 0)
+                Hlsl.InterlockedOr(ref sieveBytes[offsetByte], bitMask);
 
             if (useLongStep)
             {
