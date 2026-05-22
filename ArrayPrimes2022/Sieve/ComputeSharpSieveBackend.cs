@@ -13,8 +13,19 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
     public ComputeSharpSieveBackend()
     {
+        foreach (var device in GraphicsDevice.EnumerateDevices())
+        {
+            Console.WriteLine($"Found device: {device.Name} " +
+                              $"\n\twith {device.ComputeUnits} compute units " +
+                              $"\n\twith {device.DedicatedMemorySize} bytes of dedicated memory" +
+                              $"\n\twith {device.IsHardwareAccelerated} hardware acceleration" +
+                              $"\n\twith {device.Luid} Luid" +
+                              $"\n\twith {device.SharedMemorySize:N0} bytes of shared memory" +
+                              $"\n\twith {device.WavefrontSize} max threads per group");
+        }
         //TrySetGraphicsDriversRegistryValue();
         Device.DeviceLost += Device_DeviceLost;
+        Console.WriteLine($"Chosen device: {Device.Name}:{Device.Luid}");
     }
 
     private static void TrySetGraphicsDriversRegistryValue()
@@ -120,7 +131,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         using var longStepBitBuffer = Device.AllocateReadOnlyBuffer(longStepBits);
         using var startsWithLongStepBuffer = Device.AllocateReadOnlyBuffer(startsWithLongStep);
 
-        Device.For(1, new ComputeSharpSieveShader(
+        Device.For(divisorCount, new ComputeSharpSieveShader(
             sieveBuffer,
             startByteBuffer,
             startBitBuffer,
@@ -133,9 +144,25 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
             sieveLength));
 
         sieveBuffer.CopyTo(sieveWords);
-        Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
 
+        Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
+        
+        /*
         //for (var i = 0; i < sieveBytes.Length; i++) sieveBytes[i] = (byte)sieveWords[i];
+        for (var i = 0; i < sieveBuffer.Length; i++)
+        {
+            var sieveWord = sieveBuffer[i];
+            var sieveByteIndex = i * sizeof(uint);
+            if (sieveByteIndex < sieveBytes.Length)
+            sieveBytes[sieveByteIndex] = (byte)(sieveWord & 0xFF);
+            if (sieveByteIndex + 1 < sieveBytes.Length)
+            sieveBytes[sieveByteIndex + 1] = (byte)((sieveWord >> 8) & 0xFF);
+            if (sieveByteIndex + 2 < sieveBytes.Length)
+            sieveBytes[sieveByteIndex + 2] = (byte)((sieveWord >> 16) & 0xFF);
+            if (sieveByteIndex + 3 < sieveBytes.Length)
+            sieveBytes[sieveByteIndex + 3] = (byte)((sieveWord >> 24) & 0xFF);
+        }
+        */
     }
 }
 
@@ -180,49 +207,41 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
 
     public void Execute()
     {
-        if (ThreadIds.X != 0)
+        var divisorIndex = ThreadIds.X;
+        if (divisorIndex >= divisorCount)
             return;
 
-        for (var divisorIndex = 0; divisorIndex < divisorCount; divisorIndex++)
+        var offsetByte = startBytes[divisorIndex];
+        var offsetBit = startBits[divisorIndex];
+        var shortStepByte = shortStepBytes[divisorIndex];
+        var shortStepBit = shortStepBits[divisorIndex];
+        var longStepByte = longStepBytes[divisorIndex];
+        var longStepBit = longStepBits[divisorIndex];
+        var useLongStep = startsWithLongStep[divisorIndex] != 0;
+
+        while (offsetByte < sieveLength)
         {
-            var offsetByte = startBytes[divisorIndex];
-            var offsetBit = startBits[divisorIndex];
-            var shortStepByte = shortStepBytes[divisorIndex];
-            var shortStepBit = shortStepBits[divisorIndex];
-            var longStepByte = longStepBytes[divisorIndex];
-            var longStepBit = longStepBits[divisorIndex];
-            var useLongStep = startsWithLongStep[divisorIndex] != 0;
+            var bitMask = 1u << offsetBit;
+            Hlsl.InterlockedOr(ref sieveBytes[offsetByte], bitMask);
 
-            while (offsetByte < sieveLength)
+            if (useLongStep)
             {
-                // If all the numbers in the current word is already marked as composite, we can skip marking bits within this word.
-                if (sieveBytes[offsetByte] != uint.MaxValue)
-                {
-                    // Make the bit mask for the current offset bit and mark the corresponding bit in the sieve if it's not already marked.
-                    var bitMask = 1u << offsetBit;
-                    if ((sieveBytes[offsetByte] & bitMask) == 0)
-                        sieveBytes[offsetByte] |= bitMask;
-                }
-
-                if (useLongStep)
-                {
-                    offsetByte += longStepByte;
-                    offsetBit += longStepBit;
-                }
-                else
-                {
-                    offsetByte += shortStepByte;
-                    offsetBit += shortStepBit;
-                }
-
-                if (offsetBit >= 32)
-                {
-                    offsetBit -= 32;
-                    offsetByte++;
-                }
-
-                useLongStep = !useLongStep;
+                offsetByte += longStepByte;
+                offsetBit += longStepBit;
             }
+            else
+            {
+                offsetByte += shortStepByte;
+                offsetBit += shortStepBit;
+            }
+
+            if (offsetBit >= 32)
+            {
+                offsetBit -= 32;
+                offsetByte++;
+            }
+
+            useLongStep = !useLongStep;
         }
     }
 }
