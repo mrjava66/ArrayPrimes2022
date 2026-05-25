@@ -42,6 +42,8 @@ internal static class ProgramClass
 
     private static ulong _blockOffset;
 
+    public static int TaskLimit => _taskLimit;
+
     /// <summary>
     ///     How many tasks to run concurrently.  Normally overriden in the .config.
     /// </summary>
@@ -259,6 +261,8 @@ internal static class ProgramClass
         {
             Console.WriteLine(e);
         }
+
+        ComputeSharpSieveBackend.SetLoopSize(_taskLimit);
 
         const string linear = "linear";
         var blockOrder = (ConfigurationManager.AppSettings["BlockOrder"] ?? linear).ToLower();

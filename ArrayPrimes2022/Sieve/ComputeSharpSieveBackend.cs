@@ -13,6 +13,9 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
     public string Name => "ComputeSharp";
 
+    private static int _loopSize = 0;
+    private static uint _computeUnits;
+
     public ComputeSharpSieveBackend()
     {
         foreach (var device in GraphicsDevice.EnumerateDevices())
@@ -26,9 +29,16 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                               $"\n\twith {device.WavefrontSize} max threads per group");
         }
 
+        _computeUnits = Device.ComputeUnits;
+        SetLoopSize(ProgramClass.TaskLimit);
         TrySetGraphicsDriversRegistryValue();
         Device.DeviceLost += Device_DeviceLost;
         Console.WriteLine($"Chosen device: {Device.Name}:{Device.Luid}");
+    }
+
+    public static void SetLoopSize(int taskLimit)
+    {
+        _loopSize = (int)(_computeUnits / (taskLimit + 1));
     }
 
     private static void TrySetGraphicsDriversRegistryValue()
@@ -130,19 +140,22 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         var sieveWords = new uint[sieveBytes.Length / sizeof(uint)];
         Buffer.BlockCopy(sieveBytes, 0, sieveWords, 0, sieveBytes.Length);
 
-        lock (Device)
-        {
-            using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);
-            var sieveLength = sieveBuffer.Length;
-            using var startBytesBuffer = Device.AllocateReadOnlyBuffer(startBytes);
-            using var startBitsBuffer = Device.AllocateReadOnlyBuffer(startBits);
-            using var shortStepByteBuffer = Device.AllocateReadOnlyBuffer(shortStepBytes);
-            using var shortStepBitBuffer = Device.AllocateReadOnlyBuffer(shortStepBits);
-            using var longStepByteBuffer = Device.AllocateReadOnlyBuffer(longStepBytes);
-            using var longStepBitBuffer = Device.AllocateReadOnlyBuffer(longStepBits);
-            using var startsWithLongStepBuffer = Device.AllocateReadOnlyBuffer(startsWithLongStep);
+        using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);
+        var sieveLength = sieveBuffer.Length;
+        using var startBytesBuffer = Device.AllocateReadOnlyBuffer(startBytes);
+        using var startBitsBuffer = Device.AllocateReadOnlyBuffer(startBits);
+        using var shortStepByteBuffer = Device.AllocateReadOnlyBuffer(shortStepBytes);
+        using var shortStepBitBuffer = Device.AllocateReadOnlyBuffer(shortStepBits);
+        using var longStepByteBuffer = Device.AllocateReadOnlyBuffer(longStepBytes);
+        using var longStepBitBuffer = Device.AllocateReadOnlyBuffer(longStepBits);
+        using var startsWithLongStepBuffer = Device.AllocateReadOnlyBuffer(startsWithLongStep);
 
-            Device.For(divisorCount, new ComputeSharpSieveShader(
+        // We dispatch the compute shader in batches of _loopSize divisors to avoid overwhelming the GPU with too many threads at once.
+        // Each thread will handle one divisor and mark its multiples in the sieve.
+        var divisorOffset = 0;
+        do
+        {
+            Device.For(_loopSize, new ComputeSharpSieveShader(
                 sieveBuffer,
                 startBytesBuffer,
                 startBitsBuffer,
@@ -151,11 +164,14 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 longStepByteBuffer,
                 longStepBitBuffer,
                 startsWithLongStepBuffer,
+                divisorOffset,
                 divisorCount,
                 sieveLength));
 
-            sieveBuffer.CopyTo(sieveWords);
-        }
+            divisorOffset += _loopSize;
+        } while (divisorOffset < divisorCount);
+
+        sieveBuffer.CopyTo(sieveWords);
 
         Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
     }
@@ -173,6 +189,7 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
     private readonly ReadOnlyBuffer<int> longStepBytes;
     private readonly ReadOnlyBuffer<int> longStepBits;
     private readonly ReadOnlyBuffer<int> startsWithLongStep;
+    private readonly int divisorIndexOffset;
     private readonly int divisorCount;
     private readonly int sieveLength;
 
@@ -185,6 +202,7 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
         ReadOnlyBuffer<int> longStepBytes,
         ReadOnlyBuffer<int> longStepBits,
         ReadOnlyBuffer<int> startsWithLongStep,
+        int divisorIndexOffset,
         int divisorCount,
         int sieveLength)
     {
@@ -196,13 +214,14 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
         this.longStepBytes = longStepBytes;
         this.longStepBits = longStepBits;
         this.startsWithLongStep = startsWithLongStep;
+        this.divisorIndexOffset = divisorIndexOffset;
         this.divisorCount = divisorCount;
         this.sieveLength = sieveLength;
     }
 
     public void Execute()
     {
-        var divisorIndex = ThreadIds.X;
+        var divisorIndex = ThreadIds.X + divisorIndexOffset;
         if (divisorIndex >= divisorCount)
             return;
 
