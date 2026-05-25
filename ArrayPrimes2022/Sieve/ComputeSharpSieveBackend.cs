@@ -140,6 +140,15 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         var sieveWords = new uint[sieveBytes.Length / sizeof(uint)];
         Buffer.BlockCopy(sieveBytes, 0, sieveWords, 0, sieveBytes.Length);
 
+        AllocateAndDispatchSieveBuffers(sieveWords, startBytes, startBits, shortStepBytes, shortStepBits, longStepBytes, longStepBits, startsWithLongStep, divisorCount);
+
+        Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
+    }
+
+    private static void AllocateAndDispatchSieveBuffers(uint[] sieveWords, int[] startBytes, int[] startBits,
+        int[] shortStepBytes, int[] shortStepBits, int[] longStepBytes, int[] longStepBits, int[] startsWithLongStep,
+        int divisorCount)
+    {
         using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);
         var sieveLength = sieveBuffer.Length;
         using var startBytesBuffer = Device.AllocateReadOnlyBuffer(startBytes);
@@ -172,8 +181,6 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         } while (divisorOffset < divisorCount);
 
         sieveBuffer.CopyTo(sieveWords);
-
-        Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
     }
 }
 
