@@ -2,6 +2,8 @@ using System.Configuration;
 using System.Reflection;
 using ArrayPrimes2022.Sieve;
 
+#pragma warning disable IDE0075 // Conditional Expression can be simplified
+
 namespace ArrayPrimes2022;
 
 internal static class ProgramClass
@@ -239,11 +241,14 @@ internal static class ProgramClass
             }
             else
             {
+                // a task limit value less than 0 "number to leave free" rather than "number to use".
+                // So we add the number to leave free to the number of processors to get the number to use.
                 _taskLimit = Environment.ProcessorCount + taskLimitInt;
+                // but if the number left over is less than 1, we just use all but one processor, to actually have worker processes.
                 if (_taskLimit < 1)
                     _taskLimit = Environment.ProcessorCount - 1;
             }
-
+        
         try
         {
             var taskLimitSet = ConfigurationManager.AppSettings["taskLimitSet"] ?? "";
@@ -262,7 +267,22 @@ internal static class ProgramClass
             Console.WriteLine(e);
         }
 
-        ComputeSharpSieveBackend.SetLoopSize(_taskLimit);
+        var gpuMultiplierStr = ConfigurationManager.AppSettings["GpuMultiplier"] ?? "1.0";
+        var didGetGpuMultiplier = float.TryParse(gpuMultiplierStr, out var gpuMultiplier);
+        if (didGetGpuMultiplier)
+        {
+            ComputeSharpSieveBackend.GpuMultiplier = gpuMultiplier;
+        }
+
+        var maxSimultaneousAllocateAndDispatchSieveBuffers = ConfigurationManager.AppSettings["MaxSimultaneousAllocateAndDispatchSieveBuffers"] ?? "6";
+        if (int.TryParse(maxSimultaneousAllocateAndDispatchSieveBuffers, out var maxBuffers))
+        {
+            ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = maxBuffers;
+        }
+        else
+        {
+            ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = _taskLimit;
+        }
 
         const string linear = "linear";
         var blockOrder = (ConfigurationManager.AppSettings["BlockOrder"] ?? linear).ToLower();
@@ -326,7 +346,6 @@ internal static class ProgramClass
         var quickCheckReport = string.IsNullOrWhiteSpace(_quickCheck) ? "_blank_" : _quickCheck;
         Console.WriteLine($"BuildDate={linkTimeLocal},\n" +
                           $"BigArray={BigArray},\n" +
-                          $"SieveBackend={_activeSieveBackend.Name},\n" +
                           $"GetPreviousWork={_getPreviousWork},\n" +
                           $"LessRamMemory={_lessRamMemory},\n" +
                           $"basePath={_basePath},\n" +
@@ -334,7 +353,10 @@ internal static class ProgramClass
                           $"BlockOrder={blockOrder},RunBlocksInOrder={_runAllBlocksInOrder},\n" +
                           $"QuickCheck={quickCheckReport},\n" +
                           $"Reverse={_reverse},\n" +
-                          $"BlockOffset={_blockOffset}");
+                          $"BlockOffset={_blockOffset},\n" +
+                          $"SieveBackend={sieveBackendSetting},\n" +
+                          $"GpuMultiplier={gpuMultiplier},\n" +
+                          $"SimultaneousSieveBuffers={maxBuffers}");
     }
 
     /// <summary>
@@ -905,7 +927,8 @@ internal static class ProgramClass
     /// check (<c>bytes0[by] != 255</c> before OR-ing) reduces memory-write pressure by ~30 %
     /// when running multithreaded.
     /// </summary>
-    private static void SieveProcess(ulong loopMinCheckedValue, uint[] fdl, uint[] offsets, ulong divisorsFillPosition,
+    private static void SieveProcess(GapReport grl, ulong loopMinCheckedValue, uint[] fdl, uint[] offsets,
+        ulong divisorsFillPosition,
         ulong divisorPosition, byte[] bytes0)
     {
         /*
@@ -958,7 +981,7 @@ internal static class ProgramClass
 
         try
         {
-            _activeSieveBackend.Execute(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
+            _activeSieveBackend.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
         }
         catch (Exception ex) when (!ReferenceEquals(_activeSieveBackend, CpuSieveBackend))
         {
@@ -977,7 +1000,7 @@ internal static class ProgramClass
             }
 
             _activeSieveBackend = CpuSieveBackend;
-            CpuSieveBackend.Execute(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
+            CpuSieveBackend.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
         }
         catch (Exception ex)
         {
@@ -1092,7 +1115,7 @@ internal static class ProgramClass
                 grl.AppendTimingMark("AfterBlockCopies"); // log how long it takes to put in the blend in anvils.
             }
 
-            SieveProcess(loopMinCheckedValue, fdl, offsets, divisorsFillPosition, _anvilDivisorPosition, bytes00);
+            SieveProcess(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, _anvilDivisorPosition, bytes00);
             grl.AppendTimingMark("AfterSieve"); // log how long it took to apply the other divisors
 
             var prime = loopMaxCheckedValue;

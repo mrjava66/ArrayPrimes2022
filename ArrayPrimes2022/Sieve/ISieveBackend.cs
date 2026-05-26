@@ -4,7 +4,7 @@ internal interface ISieveBackend
 {
     string Name { get; }
 
-    void Execute(
+    void Execute(GapReport grl, 
         ulong loopMinCheckedValue,
         uint[] fullDivisorList,
         uint[] offsets,
