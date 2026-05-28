@@ -354,6 +354,8 @@ internal static class ProgramClass
                           $"QuickCheck={quickCheckReport},\n" +
                           $"Reverse={_reverse},\n" +
                           $"BlockOffset={_blockOffset},\n" +
+                          $"ComputeUnits={ComputeSharpSieveBackend.ComputeUnits},\n" +
+                          $"LoopSize={ComputeSharpSieveBackend.LoopSize},\n" +
                           $"SieveBackend={sieveBackendSetting},\n" +
                           $"GpuMultiplier={gpuMultiplier},\n" +
                           $"SimultaneousSieveBuffers={maxBuffers}");

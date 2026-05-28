@@ -16,7 +16,10 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
     public string Name => "ComputeSharp";
 
+    public static int LoopSize => _loopSize;
     private static int _loopSize = 1024;
+
+    public static uint ComputeUnits => _computeUnits;
     private static uint _computeUnits;
 
     public ComputeSharpSieveBackend()
@@ -40,7 +43,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
     public static void SetLoopSize(int taskLimit, float gpuMultiplier)
     {
-        _loopSize = (int)(gpuMultiplier *_computeUnits / taskLimit);
+        _loopSize = (int)(gpuMultiplier * _computeUnits / taskLimit);
     }
 
     private static void TrySetGraphicsDriversRegistryValue()
@@ -170,7 +173,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
             Interlocked.Exchange(
                 ref _allocateAndDispatchSieveBuffersSemaphore,
                 new SemaphoreSlim(value, value));
-            
+
             SetLoopSize(value, GpuMultiplier);
         }
     }
