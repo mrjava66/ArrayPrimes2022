@@ -15,6 +15,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
     private static SemaphoreSlim _allocateAndDispatchSieveBuffersSemaphore = new(_maxSimultaneousAllocateAndDispatchSieveBuffers, _maxSimultaneousAllocateAndDispatchSieveBuffers);
 
     public string Name => "ComputeSharp";
+    public bool IsAvailable => (Device?.ComputeUnits ?? 0) > 0;
 
     public static int LoopSize => _loopSize;
     private static int _loopSize = 1024;

@@ -249,7 +249,7 @@ internal static class ProgramClass
                 if (_taskLimit < 1)
                     _taskLimit = Environment.ProcessorCount - 1;
             }
-        
+
         try
         {
             var taskLimitSet = ConfigurationManager.AppSettings["taskLimitSet"] ?? "";
@@ -276,11 +276,11 @@ internal static class ProgramClass
             NVidiaSieveBackend.GpuMultiplier = gpuMultiplier;
         }
 
-        var maxSimultaneousAllocateAndDispatchSieveBuffers = ConfigurationManager.AppSettings["MaxSimultaneousAllocateAndDispatchSieveBuffers"] ?? "6";
-        if (int.TryParse(maxSimultaneousAllocateAndDispatchSieveBuffers, out var maxBuffers))
+        var sieveTaskRatioStr = ConfigurationManager.AppSettings["SieveTaskRatio"] ?? "0.6";
+        if (float.TryParse(sieveTaskRatioStr, out var sieveTaskRatio))
         {
-            ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = maxBuffers;
-            NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers= maxBuffers;
+            ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
+            NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
         }
         else
         {
@@ -307,14 +307,32 @@ internal static class ProgramClass
         _allowQuickCheckBailout = didParse ? val : true;
 
         var sieveBackendSetting = (ConfigurationManager.AppSettings["SieveBackend"] ?? "gpu").ToLowerInvariant();
-        _activeSieveBackend = sieveBackendSetting switch
+        switch (sieveBackendSetting)
         {
-            "cpu" => CpuSieveBackendInstance,
-            "nvidia" => NVidiaSieveBackendInstance,
-            //"gpu" => ComputeSharpSieveBackendInstance,
-            //"computesharp" => ComputeSharpSieveBackendInstance,
-            _ => ComputeSharpSieveBackendInstance
-        };
+            case "cpu":
+                Console.WriteLine("Using CpuSieveBackend");
+                _activeSieveBackend = CpuSieveBackendInstance;
+                break;
+            case "nvidia":
+                if (NVidiaSieveBackendInstance.IsAvailable)
+                {
+                    Console.WriteLine("Using NVidiaSieveBackend");
+                    _activeSieveBackend = NVidiaSieveBackendInstance;
+                }
+                else
+                {
+                    Console.WriteLine("NVidiaSieveBackend not available, falling back to ComputeSharpSieveBackend");
+                    _activeSieveBackend = ComputeSharpSieveBackendInstance;
+                }
+                break;
+            default:
+                //"gpu" => ComputeSharpSieveBackendInstance,
+                //"computesharp" => ComputeSharpSieveBackendInstance,
+                Console.WriteLine("Using ComputeSharpSieveBackend");
+                _activeSieveBackend = ComputeSharpSieveBackendInstance;
+                break;
+        }
+
         _gpuFallbackTriggered = false;
 
         var minvalueString = (ConfigurationManager.AppSettings["MinValue"] ?? "").Replace(",", "");
@@ -361,11 +379,12 @@ internal static class ProgramClass
                           $"BlockOffset={_blockOffset},\n" +
                           $"CS.ComputeUnits={ComputeSharpSieveBackend.ComputeUnits},\n" +
                           $"CS.LoopSize={ComputeSharpSieveBackend.LoopSize},\n" +
+                          $"CS.Semaphore={ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers},\n" +
                           $"NV.ComputeUnits={NVidiaSieveBackend.ComputeUnits},\n" +
                           $"NV.LoopSize={NVidiaSieveBackend.LoopSize},\n" +
+                          $"NV.Semaphore={NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers},\n" +
                           $"SieveBackend={sieveBackendSetting},\n" +
-                          $"GpuMultiplier={gpuMultiplier},\n" +
-                          $"SimultaneousSieveBuffers={maxBuffers}");
+                          $"GpuMultiplier={gpuMultiplier}");
     }
 
     /// <summary>

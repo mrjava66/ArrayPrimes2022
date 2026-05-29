@@ -10,6 +10,7 @@ internal sealed class CpuSieveBackend : ISieveBackend
     }
 
     public string Name => "CPU";
+    public bool IsAvailable => true;
 
     public void Execute(GapReport grl, ulong loopMinCheckedValue,
         uint[] fullDivisorList,
