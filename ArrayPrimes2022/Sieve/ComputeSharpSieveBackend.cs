@@ -43,6 +43,8 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
     public static void SetLoopSize(int taskLimit, float gpuMultiplier)
     {
+        if (taskLimit == 0)
+            taskLimit = 1;
         _loopSize = (int)(gpuMultiplier * _computeUnits / taskLimit);
     }
 
@@ -151,8 +153,14 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         semaphore.Wait();
         try
         {
-            grl.AppendTimingMark("AfterSemaphoreWait"); // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
-            AllocateAndDispatchSieveBuffers(sieveWords, startBytes, startBits, shortStepBytes, shortStepBits, longStepBytes, longStepBits, startsWithLongStep, divisorCount);
+        	// we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
+            grl.AppendTimingMark("AfterSemaphoreWait");
+            AllocateAndDispatchSieveBuffers(
+            sieveWords, 
+            startBytes, startBits, 
+            shortStepBytes, shortStepBits, 
+            longStepBytes, longStepBits, 
+            startsWithLongStep, divisorCount);
         }
         finally
         {
@@ -178,8 +186,15 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         }
     }
 
-    private static void AllocateAndDispatchSieveBuffers(uint[] sieveWords, int[] startBytes, int[] startBits,
-        int[] shortStepBytes, int[] shortStepBits, int[] longStepBytes, int[] longStepBits, int[] startsWithLongStep,
+    private static void AllocateAndDispatchSieveBuffers(
+    	uint[] sieveWords, 
+    	int[] startBytes, 
+    	int[] startBits,
+        int[] shortStepBytes, 
+        int[] shortStepBits, 
+        int[] longStepBytes, 
+        int[] longStepBits, 
+        int[] startsWithLongStep,
         int divisorCount)
     {
         using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);

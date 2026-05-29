@@ -9,11 +9,12 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
     public static float GpuMultiplier { get; set; } = 1.0f;
 
     private static int _maxSimultaneousAllocateAndDispatchSieveBuffers = 6;
-    private static SemaphoreSlim _allocateAndDispatchSieveBuffersSemaphore = 
+    private static SemaphoreSlim _allocateAndDispatchSieveBuffersSemaphore =
         new(_maxSimultaneousAllocateAndDispatchSieveBuffers, _maxSimultaneousAllocateAndDispatchSieveBuffers);
 
-    private readonly Context _context;
-    private readonly CudaAccelerator _accelerator;
+    private readonly Context? _context;
+    private readonly CudaAccelerator? _accelerator;
+    public bool IsAvailable => _context != null && _accelerator != null;
 
     public string Name => "NVIDIA CUDA";
 
@@ -25,30 +26,32 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
     public NVidiaSieveBackend()
     {
-        _context = Context.CreateDefault();
-
         // Try to create CUDA accelerator (will throw if no devices)
         try
         {
+            _context = Context.CreateDefault();
+
             _accelerator = _context.CreateCudaAccelerator(0);
+
+            _computeUnits = _accelerator.MaxNumThreadsPerMultiprocessor * _accelerator.NumMultiprocessors;
+
+            Console.WriteLine($"Chosen NVIDIA device: {_accelerator.Name}");
+            Console.WriteLine($"\twith {_accelerator.NumMultiprocessors} multiprocessors");
+            Console.WriteLine($"\twith {_accelerator.MaxNumThreadsPerMultiprocessor} max threads per multiprocessor");
+            Console.WriteLine($"\twith {_accelerator.MemorySize:N0} bytes of memory");
+            Console.WriteLine($"\twith {_accelerator.WarpSize} warp size");
+            Console.WriteLine($"\tTotal compute units: {_computeUnits}");
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException("No CUDA-capable NVIDIA devices found.", ex);
+            Console.WriteLine($"No CUDA-capable NVIDIA devices found. {ex}");
         }
-
-        _computeUnits = _accelerator.MaxNumThreadsPerMultiprocessor * _accelerator.NumMultiprocessors;
-
-        Console.WriteLine($"Chosen NVIDIA device: {_accelerator.Name}");
-        Console.WriteLine($"\twith {_accelerator.NumMultiprocessors} multiprocessors");
-        Console.WriteLine($"\twith {_accelerator.MaxNumThreadsPerMultiprocessor} max threads per multiprocessor");
-        Console.WriteLine($"\twith {_accelerator.MemorySize:N0} bytes of memory");
-        Console.WriteLine($"\twith {_accelerator.WarpSize} warp size");
-        Console.WriteLine($"\tTotal compute units: {_computeUnits}");
     }
 
     public static void SetLoopSize(int taskLimit, float gpuMultiplier)
     {
+        if (taskLimit == 0) 
+            taskLimit = 1;
         _loopSize = (int)(gpuMultiplier * _computeUnits / taskLimit);
     }
 
@@ -123,11 +126,13 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         semaphore.Wait();
         try
         {
+            // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
             grl.AppendTimingMark("AfterSemaphoreWait");
             AllocateAndDispatchSieveBuffers(
-                sieveWords, startBytes, startBits, 
-                shortStepBytes, shortStepBits, 
-                longStepBytes, longStepBits, 
+                sieveWords,
+                startBytes, startBits,
+                shortStepBytes, shortStepBits,
+                longStepBytes, longStepBits,
                 startsWithLongStep, divisorCount);
         }
         finally
@@ -155,16 +160,19 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
     }
 
     private void AllocateAndDispatchSieveBuffers(
-        uint[] sieveWords, 
-        int[] startBytes, 
+        uint[] sieveWords,
+        int[] startBytes,
         int[] startBits,
-        int[] shortStepBytes, 
-        int[] shortStepBits, 
-        int[] longStepBytes, 
-        int[] longStepBits, 
+        int[] shortStepBytes,
+        int[] shortStepBits,
+        int[] longStepBytes,
+        int[] longStepBits,
         int[] startsWithLongStep,
         int divisorCount)
     {
+        if (!IsAvailable || _accelerator == null)
+            throw new InvalidOperationException("CUDA accelerator is not available.");
+
         using var sieveBuffer = _accelerator.Allocate1D(sieveWords);
         var sieveLength = sieveBuffer.Length;
         using var startBytesBuffer = _accelerator.Allocate1D(startBytes);

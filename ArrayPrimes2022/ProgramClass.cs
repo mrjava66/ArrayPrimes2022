@@ -104,9 +104,10 @@ internal static class ProgramClass
 
     private static readonly TimeSpan GetPreviousWorkCadence = new(1, 0, 0);
     private static DateTime _getPreviousWorkTime = DateTime.Now + GetPreviousWorkCadence;
-    private static readonly ISieveBackend CpuSieveBackend = new CpuSieveBackend(Two28);
-    private static readonly ISieveBackend GpuSieveBackend = new ComputeSharpSieveBackend();
-    private static ISieveBackend _activeSieveBackend = CpuSieveBackend;
+    private static readonly ISieveBackend CpuSieveBackendInstance = new CpuSieveBackend(Two28);
+    private static readonly ISieveBackend ComputeSharpSieveBackendInstance = new ComputeSharpSieveBackend();
+    private static readonly ISieveBackend NVidiaSieveBackendInstance = new NVidiaSieveBackend();
+    private static ISieveBackend _activeSieveBackend = CpuSieveBackendInstance;
     private static bool _gpuFallbackTriggered;
 
     static ProgramClass()
@@ -272,16 +273,19 @@ internal static class ProgramClass
         if (didGetGpuMultiplier)
         {
             ComputeSharpSieveBackend.GpuMultiplier = gpuMultiplier;
+            NVidiaSieveBackend.GpuMultiplier = gpuMultiplier;
         }
 
         var maxSimultaneousAllocateAndDispatchSieveBuffers = ConfigurationManager.AppSettings["MaxSimultaneousAllocateAndDispatchSieveBuffers"] ?? "6";
         if (int.TryParse(maxSimultaneousAllocateAndDispatchSieveBuffers, out var maxBuffers))
         {
             ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = maxBuffers;
+            NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers= maxBuffers;
         }
         else
         {
             ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = _taskLimit;
+            NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = _taskLimit;
         }
 
         const string linear = "linear";
@@ -305,10 +309,11 @@ internal static class ProgramClass
         var sieveBackendSetting = (ConfigurationManager.AppSettings["SieveBackend"] ?? "gpu").ToLowerInvariant();
         _activeSieveBackend = sieveBackendSetting switch
         {
-            "cpu" => CpuSieveBackend,
-            "gpu" => GpuSieveBackend,
-            "computesharp" => GpuSieveBackend,
-            _ => GpuSieveBackend
+            "cpu" => CpuSieveBackendInstance,
+            "nvidia" => NVidiaSieveBackendInstance,
+            //"gpu" => ComputeSharpSieveBackendInstance,
+            //"computesharp" => ComputeSharpSieveBackendInstance,
+            _ => ComputeSharpSieveBackendInstance
         };
         _gpuFallbackTriggered = false;
 
@@ -354,8 +359,10 @@ internal static class ProgramClass
                           $"QuickCheck={quickCheckReport},\n" +
                           $"Reverse={_reverse},\n" +
                           $"BlockOffset={_blockOffset},\n" +
-                          $"ComputeUnits={ComputeSharpSieveBackend.ComputeUnits},\n" +
-                          $"LoopSize={ComputeSharpSieveBackend.LoopSize},\n" +
+                          $"CS.ComputeUnits={ComputeSharpSieveBackend.ComputeUnits},\n" +
+                          $"CS.LoopSize={ComputeSharpSieveBackend.LoopSize},\n" +
+                          $"NV.ComputeUnits={NVidiaSieveBackend.ComputeUnits},\n" +
+                          $"NV.LoopSize={NVidiaSieveBackend.LoopSize},\n" +
                           $"SieveBackend={sieveBackendSetting},\n" +
                           $"GpuMultiplier={gpuMultiplier},\n" +
                           $"SimultaneousSieveBuffers={maxBuffers}");
@@ -985,7 +992,7 @@ internal static class ProgramClass
         {
             _activeSieveBackend.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
         }
-        catch (Exception ex) when (!ReferenceEquals(_activeSieveBackend, CpuSieveBackend))
+        catch (Exception ex) when (!ReferenceEquals(_activeSieveBackend, CpuSieveBackendInstance))
         {
             var ex0 = ex;
             while (ex0 != null)
@@ -1001,8 +1008,8 @@ internal static class ProgramClass
                 _gpuFallbackTriggered = true;
             }
 
-            _activeSieveBackend = CpuSieveBackend;
-            CpuSieveBackend.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
+            _activeSieveBackend = CpuSieveBackendInstance;
+            CpuSieveBackendInstance.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
         }
         catch (Exception ex)
         {
