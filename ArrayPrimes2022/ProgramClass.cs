@@ -276,11 +276,27 @@ internal static class ProgramClass
             NVidiaSieveBackend.GpuMultiplier = gpuMultiplier;
         }
 
+        var innerOuterSieveRatioStr = ConfigurationManager.AppSettings["InnerOuterSieveRatio"] ?? "3";
+        if (int.TryParse(innerOuterSieveRatioStr, out var innerOuterSieveRatio))
+        {
+            if (innerOuterSieveRatio < 0)
+                innerOuterSieveRatio *= -1;
+            if (innerOuterSieveRatio != 0)
+            {
+                NVidiaSieveBackend.InnerOuterSieveRatio = innerOuterSieveRatio;
+            }
+        }
+
         var sieveTaskRatioStr = ConfigurationManager.AppSettings["SieveTaskRatio"] ?? "0.6";
         if (float.TryParse(sieveTaskRatioStr, out var sieveTaskRatio))
         {
-            ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
-            NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
+            if (sieveTaskRatio < 0)
+                sieveTaskRatio *= -1;
+            if (sieveTaskRatio != 0)
+            {
+                ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
+                NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
+            }
         }
         else
         {
@@ -384,6 +400,7 @@ internal static class ProgramClass
                           $"NV.LoopSize={NVidiaSieveBackend.LoopSize},\n" +
                           $"NV.Semaphore={NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers},\n" +
                           $"SieveBackend={sieveBackendSetting},\n" +
+                          $"InnerOuterSieveRatio={innerOuterSieveRatio},\n" +
                           $"GpuMultiplier={gpuMultiplier}");
     }
 
