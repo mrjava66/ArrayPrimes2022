@@ -192,47 +192,72 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 int,
                 int>(SieveKernel);
 
-            // Dispatch the compute kernel in batches of _loopSize divisors
-            var divisorOffset = 0;
-            do
-            {
-                var batchSize = Math.Min(_loopSize, divisorCount - divisorOffset);
+        // Dispatch the compute kernel in batches of _loopSize divisors
+        var yDim = _accelerator.WarpSize;
+        var xDim = _computeUnits / yDim;
+        var divisorCount1D = divisorCount - xDim;
+        var divisorOffset = 0;
+        do
+        {
+            var batchSize = Math.Min(_loopSize, divisorCount1D - divisorOffset);
 
-                //if (batchSize < _loopSize && batchSize > 80) batchSize -= 80; // the true last batch should be 2D.
-                kernel(
-                    _accelerator.DefaultStream,
-                    (Index1D)batchSize,
-                    sieveBuffer.View,
-                    startBytesBuffer.View,
-                    startBitsBuffer.View,
-                    shortStepBytesBuffer.View,
-                    shortStepBitsBuffer.View,
-                    longStepBytesBuffer.View,
-                    longStepBitsBuffer.View,
-                    startsWithLongStepBuffer.View,
-                    divisorOffset,
-                    divisorCount,
-                    (int)sieveLength);
-
-                //grl.AppendTimingMark($"kernel {divisorOffset}:{batchSize} of {divisorCount} completed.");
-                _accelerator.Synchronize();
-                //grl.AppendTimingMark($"After kernel {divisorOffset}:{batchSize} synchronize.");
-
-                divisorOffset += batchSize;
-            } while (divisorOffset < divisorCount);
-            grl.AppendTimingMark("After kernel(_accelerator ... ) calls");
-
+            kernel(
+                _accelerator.DefaultStream,
+                (Index1D)batchSize,
+                sieveBuffer.View,
+                startBytesBuffer.View,
+                startBitsBuffer.View,
+                shortStepBytesBuffer.View,
+                shortStepBitsBuffer.View,
+                longStepBytesBuffer.View,
+                longStepBitsBuffer.View,
+                startsWithLongStepBuffer.View,
+                divisorOffset,
+                divisorCount,
+                (int)sieveLength);
             _accelerator.Synchronize();
-            grl.AppendTimingMark("After _accelerator.Synchronize");
 
-            sieveBuffer.CopyToCPU(sieveWords);
-            grl.AppendTimingMark("After sieveBuffer.CopyToCPU(sieveWords);");
+            divisorOffset += batchSize;
+        } while (divisorOffset < divisorCount1D);
+
+        kernel = null;
+        var kernel2D = _accelerator.LoadAutoGroupedKernel<
+            Index2D,
+            ArrayView<uint>,
+            ArrayView<int>,
+            ArrayView<int>,
+            ArrayView<int>,
+            ArrayView<int>,
+            ArrayView<int>,
+            ArrayView<int>,
+            ArrayView<int>,
+            int,
+            int,
+            int,
+            int>(SieveKernel2D);
+
+        kernel2D(
+            _accelerator.DefaultStream,
+            (Index2D)new Index2D(xDim, yDim),
+            sieveBuffer.View,
+            startBytesBuffer.View,
+            startBitsBuffer.View,
+            shortStepBytesBuffer.View,
+            shortStepBitsBuffer.View,
+            longStepBytesBuffer.View,
+            longStepBitsBuffer.View,
+            startsWithLongStepBuffer.View,
+            divisorOffset,
+            divisorCount,
+            (int)sieveLength,
+            yDim);
+        _accelerator.Synchronize();
+        sieveBuffer.CopyToCPU(sieveWords);
         }
         finally
         {
             semaphore.Release();
         }
-
     }
 
     private static void SieveKernel(
@@ -261,6 +286,58 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         var longStepBit = longStepBits[divisorIndex];
         var useLongStep = startsWithLongStep[divisorIndex] != 0;
 
+        UpdateSieveBytes(sieveBytes, sieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
+    }
+
+    private static void SieveKernel2D(
+        Index2D index,
+        ArrayView<uint> sieveBytes,
+        ArrayView<int> startBytes,
+        ArrayView<int> startBits,
+        ArrayView<int> shortStepBytes,
+        ArrayView<int> shortStepBits,
+        ArrayView<int> longStepBytes,
+        ArrayView<int> longStepBits,
+        ArrayView<int> startsWithLongStep,
+        int divisorIndexOffset,
+        int divisorCount,
+        int sieveLength,
+        int yDim)
+    {
+        var divisorIndex = index.X + divisorIndexOffset;
+        if (divisorIndex >= divisorCount)
+            return;
+
+        var offsetByte = startBytes[divisorIndex];
+        var offsetBit = startBits[divisorIndex];
+        var shortStepByte = shortStepBytes[divisorIndex];
+        var shortStepBit = shortStepBits[divisorIndex];
+        var longStepByte = longStepBytes[divisorIndex];
+        var longStepBit = longStepBits[divisorIndex];
+        var useLongStep = startsWithLongStep[divisorIndex] != 0;
+
+        var totalNumDoubleSteps = sieveLength / ((shortStepByte + longStepByte) + (shortStepBit + longStepBit) / 32); // Approximate total number of steps for this divisor
+        var offsetStart = index.Y * totalNumDoubleSteps / yDim; // Starting offset for this thread in the double step sequence
+        var offsetEnd = (1 + index.Y) * totalNumDoubleSteps / yDim; // Starting offset for this thread in the double step sequence
+offsetByte += offsetStart * (shortStepByte + longStepByte);
+offsetBit += offsetStart * (shortStepBit + longStepBit);
+while (offsetBit >= 32)
+{
+    offsetBit -= 32;
+    offsetByte++;
+}
+var newSieveLength = offsetEnd * (shortStepByte + longStepByte);
+newSieveLength += (offsetEnd * (shortStepBit + longStepBit)) / 32;
+newSieveLength++;
+if (newSieveLength > sieveLength)
+    newSieveLength = sieveLength;
+
+        UpdateSieveBytes(sieveBytes, newSieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
+    }
+
+    private static void UpdateSieveBytes(ArrayView<uint> sieveBytes, int sieveLength, int offsetByte, int offsetBit,
+        bool useLongStep, int longStepByte, int longStepBit, int shortStepByte, int shortStepBit)
+    {
         while (offsetByte < sieveLength)
         {
             var bitMask = 1u << offsetBit;
