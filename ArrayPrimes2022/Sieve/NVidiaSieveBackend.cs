@@ -198,6 +198,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             {
                 var batchSize = Math.Min(_loopSize, divisorCount - divisorOffset);
 
+                //if (batchSize < _loopSize && batchSize > 80) batchSize -= 80; // the true last batch should be 2D.
                 kernel(
                     _accelerator.DefaultStream,
                     (Index1D)batchSize,
@@ -214,8 +215,10 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     (int)sieveLength);
 
                 //grl.AppendTimingMark($"kernel {divisorOffset}:{batchSize} of {divisorCount} completed.");
+                _accelerator.Synchronize();
+                //grl.AppendTimingMark($"After kernel {divisorOffset}:{batchSize} synchronize.");
 
-                divisorOffset += _loopSize;
+                divisorOffset += batchSize;
             } while (divisorOffset < divisorCount);
             grl.AppendTimingMark("After kernel(_accelerator ... ) calls");
 
