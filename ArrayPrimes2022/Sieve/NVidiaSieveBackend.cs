@@ -192,18 +192,54 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 int,
                 int>(SieveKernel);
 
-        // Dispatch the compute kernel in batches of _loopSize divisors
-        var yDim = _accelerator.WarpSize;
-        var xDim = _computeUnits / yDim;
-        var divisorCount1D = divisorCount - xDim;
-        var divisorOffset = 0;
-        do
-        {
-            var batchSize = Math.Min(_loopSize, divisorCount1D - divisorOffset);
+            // Dispatch the compute kernel in batches of _loopSize divisors
+            var yDim = _accelerator.WarpSize;
+            var xDim = _computeUnits / yDim;
+            var divisorCount1D = divisorCount - xDim;
+            var divisorOffset = 0;
+            do
+            {
+                var batchSize = Math.Min(_loopSize, divisorCount1D - divisorOffset);
 
-            kernel(
+                kernel(
+                    _accelerator.DefaultStream,
+                    (Index1D)batchSize,
+                    sieveBuffer.View,
+                    startBytesBuffer.View,
+                    startBitsBuffer.View,
+                    shortStepBytesBuffer.View,
+                    shortStepBitsBuffer.View,
+                    longStepBytesBuffer.View,
+                    longStepBitsBuffer.View,
+                    startsWithLongStepBuffer.View,
+                    divisorOffset,
+                    divisorCount,
+                    (int)sieveLength);
+                _accelerator.Synchronize();
+
+                divisorOffset += batchSize;
+            } while (divisorOffset < divisorCount1D);
+            grl.AppendTimingMark("After kernel(1D) calls");
+
+            kernel = null;
+            var kernel2D = _accelerator.LoadAutoGroupedKernel<
+                Index2D,
+                ArrayView<uint>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                int,
+                int,
+                int,
+                int>(SieveKernel2D);
+
+            kernel2D(
                 _accelerator.DefaultStream,
-                (Index1D)batchSize,
+                (Index2D)new Index2D(xDim, yDim),
                 sieveBuffer.View,
                 startBytesBuffer.View,
                 startBitsBuffer.View,
@@ -214,45 +250,13 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 startsWithLongStepBuffer.View,
                 divisorOffset,
                 divisorCount,
-                (int)sieveLength);
+                (int)sieveLength,
+                yDim);
             _accelerator.Synchronize();
+            grl.AppendTimingMark("After kernel(2D) call");
 
-            divisorOffset += batchSize;
-        } while (divisorOffset < divisorCount1D);
-
-        kernel = null;
-        var kernel2D = _accelerator.LoadAutoGroupedKernel<
-            Index2D,
-            ArrayView<uint>,
-            ArrayView<int>,
-            ArrayView<int>,
-            ArrayView<int>,
-            ArrayView<int>,
-            ArrayView<int>,
-            ArrayView<int>,
-            ArrayView<int>,
-            int,
-            int,
-            int,
-            int>(SieveKernel2D);
-
-        kernel2D(
-            _accelerator.DefaultStream,
-            (Index2D)new Index2D(xDim, yDim),
-            sieveBuffer.View,
-            startBytesBuffer.View,
-            startBitsBuffer.View,
-            shortStepBytesBuffer.View,
-            shortStepBitsBuffer.View,
-            longStepBytesBuffer.View,
-            longStepBitsBuffer.View,
-            startsWithLongStepBuffer.View,
-            divisorOffset,
-            divisorCount,
-            (int)sieveLength,
-            yDim);
-        _accelerator.Synchronize();
-        sieveBuffer.CopyToCPU(sieveWords);
+            sieveBuffer.CopyToCPU(sieveWords);
+            grl.AppendTimingMark("After sieveBuffer.CopyToCPU");
         }
         finally
         {
@@ -316,21 +320,26 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         var longStepBit = longStepBits[divisorIndex];
         var useLongStep = startsWithLongStep[divisorIndex] != 0;
 
+        //revise the offset-s and sieve length for this thread based on its Y index, so that each thread processes a different portion of the sieve.
         var totalNumDoubleSteps = sieveLength / ((shortStepByte + longStepByte) + (shortStepBit + longStepBit) / 32); // Approximate total number of steps for this divisor
         var offsetStart = index.Y * totalNumDoubleSteps / yDim; // Starting offset for this thread in the double step sequence
         var offsetEnd = (1 + index.Y) * totalNumDoubleSteps / yDim; // Starting offset for this thread in the double step sequence
-offsetByte += offsetStart * (shortStepByte + longStepByte);
-offsetBit += offsetStart * (shortStepBit + longStepBit);
-while (offsetBit >= 32)
-{
-    offsetBit -= 32;
-    offsetByte++;
-}
-var newSieveLength = offsetEnd * (shortStepByte + longStepByte);
-newSieveLength += (offsetEnd * (shortStepBit + longStepBit)) / 32;
-newSieveLength++;
-if (newSieveLength > sieveLength)
-    newSieveLength = sieveLength;
+        offsetByte += offsetStart * (shortStepByte + longStepByte);
+        offsetBit += offsetStart * (shortStepBit + longStepBit);
+        while (offsetBit >= 32)
+        {
+            offsetBit -= 32;
+            offsetByte++;
+        }
+        var newSieveLength = offsetEnd * (shortStepByte + longStepByte);
+        newSieveLength += (offsetEnd * (shortStepBit + longStepBit)) / 32;
+        newSieveLength++;
+        // don't run over the end.
+        if (newSieveLength > sieveLength)
+            newSieveLength = sieveLength;
+        // make sure the last thread completes the end of the sieve.
+        if (index.Y + 1 >= yDim)
+            newSieveLength = sieveLength;
 
         UpdateSieveBytes(sieveBytes, newSieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
     }
