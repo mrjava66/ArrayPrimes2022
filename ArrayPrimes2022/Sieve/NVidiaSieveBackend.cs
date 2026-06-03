@@ -10,8 +10,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
     private static int _maxSieveBuffers = 6;
     private static SemaphoreSlim _SieveBufferSemaphore = new(_maxSieveBuffers, _maxSieveBuffers);
-    private static int _innerOuterSieveRatio = 5;
-    private static SemaphoreSlim _outerSieveBufferSemephore = new(_innerOuterSieveRatio * _maxSieveBuffers, _innerOuterSieveRatio * _maxSieveBuffers);
 
     private readonly Context? _context;
     private readonly CudaAccelerator? _accelerator;
@@ -133,16 +131,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
     }
 
-    public static int InnerOuterSieveRatio
-    {
-        get => _innerOuterSieveRatio;
-        set
-        {
-            _innerOuterSieveRatio = value;
-            Interlocked.Exchange(ref _outerSieveBufferSemephore, new SemaphoreSlim(_innerOuterSieveRatio * value, _innerOuterSieveRatio * value));
-        }
-    }
-
     public static int MaxSimultaneousAllocateAndDispatchSieveBuffers
     {
         get => _maxSieveBuffers;
@@ -152,7 +140,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
             _maxSieveBuffers = value;
             Interlocked.Exchange(ref _SieveBufferSemaphore, new SemaphoreSlim(value, value));
-            Interlocked.Exchange(ref _outerSieveBufferSemephore, new SemaphoreSlim(_innerOuterSieveRatio * value, _innerOuterSieveRatio * value));
 
             SetLoopSize(value, GpuMultiplier);
         }
@@ -174,74 +161,63 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             throw new InvalidOperationException("CUDA accelerator is not available.");
 
         grl.AppendTimingMark("BeforeOuterSemaphoreWait");
-        var outerSemaphore = _outerSieveBufferSemephore;
-        outerSemaphore.Wait();
+        var semaphore = _SieveBufferSemaphore;
+        semaphore.Wait();
         try
         {
-            grl.AppendTimingMark("AfterOuterSemaphoreWait");
+            // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
+            grl.AppendTimingMark("AfterSemaphoreWait");
             using var sieveBuffer = _accelerator.Allocate1D(sieveWords);
             var sieveLength = sieveBuffer.Length;
+            using var startBytesBuffer = _accelerator.Allocate1D(startBytes);
+            using var startBitsBuffer = _accelerator.Allocate1D(startBits);
+            using var shortStepBytesBuffer = _accelerator.Allocate1D(shortStepBytes);
+            using var shortStepBitsBuffer = _accelerator.Allocate1D(shortStepBits);
+            using var longStepBytesBuffer = _accelerator.Allocate1D(longStepBytes);
+            using var longStepBitsBuffer = _accelerator.Allocate1D(longStepBits);
+            using var startsWithLongStepBuffer = _accelerator.Allocate1D(startsWithLongStep);
 
-            var semaphore = _SieveBufferSemaphore;
-            semaphore.Wait();
-            try
+            // Load and compile the kernel (cached after first call)
+            var kernel = _accelerator.LoadAutoGroupedKernel<
+                Index1D,
+                ArrayView<uint>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                int,
+                int,
+                int>(SieveKernel);
+
+            // Dispatch the compute kernel in batches of _loopSize divisors
+            var divisorOffset = 0;
+            do
             {
-                // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
-                grl.AppendTimingMark("AfterSemaphoreWait");
-                using var startBytesBuffer = _accelerator.Allocate1D(startBytes);
-                using var startBitsBuffer = _accelerator.Allocate1D(startBits);
-                using var shortStepBytesBuffer = _accelerator.Allocate1D(shortStepBytes);
-                using var shortStepBitsBuffer = _accelerator.Allocate1D(shortStepBits);
-                using var longStepBytesBuffer = _accelerator.Allocate1D(longStepBytes);
-                using var longStepBitsBuffer = _accelerator.Allocate1D(longStepBits);
-                using var startsWithLongStepBuffer = _accelerator.Allocate1D(startsWithLongStep);
+                var batchSize = Math.Min(_loopSize, divisorCount - divisorOffset);
 
-                // Load and compile the kernel (cached after first call)
-                var kernel = _accelerator.LoadAutoGroupedKernel<
-                    Index1D,
-                    ArrayView<uint>,
-                    ArrayView<int>,
-                    ArrayView<int>,
-                    ArrayView<int>,
-                    ArrayView<int>,
-                    ArrayView<int>,
-                    ArrayView<int>,
-                    ArrayView<int>,
-                    int,
-                    int,
-                    int>(SieveKernel);
+                kernel(
+                    _accelerator.DefaultStream,
+                    (Index1D)batchSize,
+                    sieveBuffer.View,
+                    startBytesBuffer.View,
+                    startBitsBuffer.View,
+                    shortStepBytesBuffer.View,
+                    shortStepBitsBuffer.View,
+                    longStepBytesBuffer.View,
+                    longStepBitsBuffer.View,
+                    startsWithLongStepBuffer.View,
+                    divisorOffset,
+                    divisorCount,
+                    (int)sieveLength);
 
-                // Dispatch the compute kernel in batches of _loopSize divisors
-                var divisorOffset = 0;
-                do
-                {
-                    var batchSize = Math.Min(_loopSize, divisorCount - divisorOffset);
+                //grl.AppendTimingMark($"kernel {divisorOffset}:{batchSize} of {divisorCount} completed.");
 
-                    kernel(
-                        _accelerator.DefaultStream,
-                        (Index1D)batchSize,
-                        sieveBuffer.View,
-                        startBytesBuffer.View,
-                        startBitsBuffer.View,
-                        shortStepBytesBuffer.View,
-                        shortStepBitsBuffer.View,
-                        longStepBytesBuffer.View,
-                        longStepBitsBuffer.View,
-                        startsWithLongStepBuffer.View,
-                        divisorOffset,
-                        divisorCount,
-                        (int)sieveLength);
-
-                    grl.AppendTimingMark($"kernel {divisorOffset}:{batchSize} of {divisorCount} completed.");
-
-                    divisorOffset += _loopSize;
-                } while (divisorOffset < divisorCount);
-
-            }
-            finally
-            {
-                semaphore.Release();
-            }
+                divisorOffset += _loopSize;
+            } while (divisorOffset < divisorCount);
+            grl.AppendTimingMark("After kernel(_accelerator ... ) calls");
 
             _accelerator.Synchronize();
             grl.AppendTimingMark("After _accelerator.Synchronize");
@@ -251,8 +227,9 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         }
         finally
         {
-            outerSemaphore.Release();
+            semaphore.Release();
         }
+
     }
 
     private static void SieveKernel(
