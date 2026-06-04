@@ -6,10 +6,7 @@ namespace ArrayPrimes2022.Sieve;
 
 internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 {
-    public static float GpuMultiplier { get; set; } = 1.0f;
-
-    private static int _maxSieveBuffers = 6;
-    private static SemaphoreSlim _SieveBufferSemaphore = new(_maxSieveBuffers, _maxSieveBuffers);
+    private static readonly SemaphoreSlim SieveBufferSemaphore = new(1, 1);
 
     private readonly Context? _context;
     private readonly CudaAccelerator? _accelerator;
@@ -17,10 +14,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
     public string Name => "NVIDIA CUDA";
 
-    public static int LoopSize => _loopSize;
-    private static int _loopSize = 1024;
-
-    public static int ComputeUnits => _computeUnits;
     private static int _computeUnits;
 
     public NVidiaSieveBackend()
@@ -45,13 +38,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         {
             Console.WriteLine($"No CUDA-capable NVIDIA devices found. {ex}");
         }
-    }
-
-    public static void SetLoopSize(int taskLimit, float gpuMultiplier)
-    {
-        if (taskLimit == 0)
-            taskLimit = 1;
-        _loopSize = (int)(gpuMultiplier * _computeUnits / taskLimit);
     }
 
     public void Execute(
@@ -131,20 +117,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
     }
 
-    public static int MaxSimultaneousAllocateAndDispatchSieveBuffers
-    {
-        get => _maxSieveBuffers;
-        set
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-            _maxSieveBuffers = value;
-            Interlocked.Exchange(ref _SieveBufferSemaphore, new SemaphoreSlim(value, value));
-
-            SetLoopSize(value, GpuMultiplier);
-        }
-    }
-
     private void AllocateAndDispatchSieveBuffers(
         GapReport grl,
         uint[] sieveWords,
@@ -161,7 +133,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             throw new InvalidOperationException("CUDA accelerator is not available.");
 
         grl.AppendTimingMark("BeforeOuterSemaphoreWait");
-        var semaphore = _SieveBufferSemaphore;
+        var semaphore = SieveBufferSemaphore;
         semaphore.Wait();
         try
         {
@@ -195,15 +167,16 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             // Dispatch the compute kernel in batches of _loopSize divisors
             var yDim = _accelerator.WarpSize;
             var xDim = _computeUnits / yDim;
-            var divisorCount1D = divisorCount - xDim;
+            var num2DLoops = 2;
+            var divisorCount1D = divisorCount - num2DLoops * xDim;
             var divisorOffset = 0;
             do
             {
-                var batchSize = Math.Min(_loopSize, divisorCount1D - divisorOffset);
+                var batchSize = Math.Min(_computeUnits, divisorCount1D - divisorOffset);
 
                 kernel(
                     _accelerator.DefaultStream,
-                    (Index1D)batchSize,
+                     new Index1D(batchSize),
                     sieveBuffer.View,
                     startBytesBuffer.View,
                     startBitsBuffer.View,
@@ -221,7 +194,12 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             } while (divisorOffset < divisorCount1D);
             grl.AppendTimingMark("After kernel(1D) calls");
 
+            // affirmatively dispose the 1D kernel to free resources before launching the 2D kernel, which may require more resources.
+            // This is a bit of a hack since ILGPU doesn't provide a way to unload kernels.
+            // It may help reduce the chance of running out of resources when launching the 2D kernel.
+            // ReSharper disable once RedundantAssignment
             kernel = null;
+
             var kernel2D = _accelerator.LoadAutoGroupedKernel<
                 Index2D,
                 ArrayView<uint>,
@@ -236,24 +214,29 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 int,
                 int,
                 int>(SieveKernel2D);
+            do
+            {
+                kernel2D(
+                    _accelerator.DefaultStream,
+                    new Index2D(xDim, yDim),
+                    sieveBuffer.View,
+                    startBytesBuffer.View,
+                    startBitsBuffer.View,
+                    shortStepBytesBuffer.View,
+                    shortStepBitsBuffer.View,
+                    longStepBytesBuffer.View,
+                    longStepBitsBuffer.View,
+                    startsWithLongStepBuffer.View,
+                    divisorOffset,
+                    divisorCount,
+                    (int)sieveLength,
+                    yDim);
+                _accelerator.Synchronize();
 
-            kernel2D(
-                _accelerator.DefaultStream,
-                (Index2D)new Index2D(xDim, yDim),
-                sieveBuffer.View,
-                startBytesBuffer.View,
-                startBitsBuffer.View,
-                shortStepBytesBuffer.View,
-                shortStepBitsBuffer.View,
-                longStepBytesBuffer.View,
-                longStepBitsBuffer.View,
-                startsWithLongStepBuffer.View,
-                divisorOffset,
-                divisorCount,
-                (int)sieveLength,
-                yDim);
-            _accelerator.Synchronize();
-            grl.AppendTimingMark("After kernel(2D) call");
+                grl.AppendTimingMark("After kernel(2D) call");
+                divisorOffset += xDim;
+
+            } while (divisorOffset < divisorCount);
 
             sieveBuffer.CopyToCPU(sieveWords);
             grl.AppendTimingMark("After sieveBuffer.CopyToCPU");

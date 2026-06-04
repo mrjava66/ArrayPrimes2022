@@ -44,8 +44,6 @@ internal static class ProgramClass
 
     private static ulong _blockOffset;
 
-    public static int TaskLimit => _taskLimit;
-
     /// <summary>
     ///     How many tasks to run concurrently.  Normally overriden in the .config.
     /// </summary>
@@ -273,7 +271,6 @@ internal static class ProgramClass
         if (didGetGpuMultiplier)
         {
             ComputeSharpSieveBackend.GpuMultiplier = gpuMultiplier;
-            NVidiaSieveBackend.GpuMultiplier = gpuMultiplier;
         }
 
         var sieveTaskRatioStr = ConfigurationManager.AppSettings["SieveTaskRatio"] ?? "0.6";
@@ -284,13 +281,11 @@ internal static class ProgramClass
             if (sieveTaskRatio != 0)
             {
                 ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
-                NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
             }
         }
         else
         {
             ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = _taskLimit;
-            NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = _taskLimit;
         }
 
         const string linear = "linear";
@@ -385,9 +380,6 @@ internal static class ProgramClass
                           $"CS.ComputeUnits={ComputeSharpSieveBackend.ComputeUnits},\n" +
                           $"CS.LoopSize={ComputeSharpSieveBackend.LoopSize},\n" +
                           $"CS.Semaphore={ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers},\n" +
-                          $"NV.ComputeUnits={NVidiaSieveBackend.ComputeUnits},\n" +
-                          $"NV.LoopSize={NVidiaSieveBackend.LoopSize},\n" +
-                          $"NV.Semaphore={NVidiaSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers},\n" +
                           $"SieveBackend={sieveBackendSetting},\n" +
                           $"GpuMultiplier={gpuMultiplier}");
     }
