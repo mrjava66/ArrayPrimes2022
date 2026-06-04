@@ -167,7 +167,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             // Dispatch the compute kernel in batches of _loopSize divisors
             var yDim = _accelerator.WarpSize;
             var xDim = _computeUnits / yDim;
-            var num2DLoops = 2;
+            var num2DLoops = 3;
             var divisorCount1D = divisorCount - num2DLoops * xDim;
             var divisorOffset = 0;
             do
@@ -190,15 +190,12 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     (int)sieveLength);
                 _accelerator.Synchronize();
 
+                if (divisorOffset + 2 * batchSize >= divisorCount1D) // if the next loop will be the last 1D loop, mark the time after this loop as "After kernel(1D) calls" to include the time spent in the last 1D loop in that timing.
+                    grl.AppendTimingMark("After kernel(1D) calls");
+
                 divisorOffset += batchSize;
             } while (divisorOffset < divisorCount1D);
             grl.AppendTimingMark("After kernel(1D) calls");
-
-            // affirmatively dispose the 1D kernel to free resources before launching the 2D kernel, which may require more resources.
-            // This is a bit of a hack since ILGPU doesn't provide a way to unload kernels.
-            // It may help reduce the chance of running out of resources when launching the 2D kernel.
-            // ReSharper disable once RedundantAssignment
-            kernel = null;
 
             var kernel2D = _accelerator.LoadAutoGroupedKernel<
                 Index2D,
@@ -306,14 +303,12 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         //revise the offset-s and sieve length for this thread based on its Y index, so that each thread processes a different portion of the sieve.
         var totalNumDoubleSteps = sieveLength / ((shortStepByte + longStepByte) + (shortStepBit + longStepBit) / 32); // Approximate total number of steps for this divisor
         var offsetStart = index.Y * totalNumDoubleSteps / yDim; // Starting offset for this thread in the double step sequence
-        var offsetEnd = (1 + index.Y) * totalNumDoubleSteps / yDim; // Starting offset for this thread in the double step sequence
+        var offsetEnd = (1 + index.Y) * totalNumDoubleSteps / yDim; // Ending offset for this thread in the double step sequence
         offsetByte += offsetStart * (shortStepByte + longStepByte);
         offsetBit += offsetStart * (shortStepBit + longStepBit);
-        while (offsetBit >= 32)
-        {
-            offsetBit -= 32;
-            offsetByte++;
-        }
+        //offsetByte += (int)(offsetBit / 32);
+        //offsetBit %= 32;
+        while (offsetBit >= 32) { offsetBit -= 32; offsetByte++; }
         var newSieveLength = offsetEnd * (shortStepByte + longStepByte);
         newSieveLength += (offsetEnd * (shortStepBit + longStepBit)) / 32;
         newSieveLength++;
