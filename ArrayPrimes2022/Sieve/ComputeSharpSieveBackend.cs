@@ -176,14 +176,13 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         get => _maxSimultaneousAllocateAndDispatchSieveBuffers;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-            _maxSimultaneousAllocateAndDispatchSieveBuffers = value;
+            var localValue = value > 0 ? value : 1;
+            _maxSimultaneousAllocateAndDispatchSieveBuffers = localValue;
             Interlocked.Exchange(
                 ref _allocateAndDispatchSieveBuffersSemaphore,
-                new SemaphoreSlim(value, value));
+                new SemaphoreSlim(localValue, localValue));
 
-            SetLoopSize(value, GpuMultiplier);
+            SetLoopSize(localValue, GpuMultiplier);
         }
     }
 

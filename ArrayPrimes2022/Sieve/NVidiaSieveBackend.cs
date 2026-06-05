@@ -167,8 +167,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             // Dispatch the compute kernel in batches of _loopSize divisors
             var yDim = _accelerator.WarpSize;
             var xDim = _computeUnits / yDim;
-            var num2DLoops = 3;
-            var divisorCount1D = divisorCount - num2DLoops * xDim;
+            var num2DLoops = 2.25;
+            var divisorCount1D = (int)(divisorCount - num2DLoops * xDim);
             var divisorOffset = 0;
             do
             {
@@ -190,7 +190,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     (int)sieveLength);
                 _accelerator.Synchronize();
 
-                if (divisorOffset + 2 * batchSize >= divisorCount1D) // if the next loop will be the last 1D loop, mark the time after this loop as "After kernel(1D) calls" to include the time spent in the last 1D loop in that timing.
+                // if the next loop will be the last 1D loop, mark the time after this loop as "After kernel(1D) calls" to include the time spent in the last 1D loop in that timing.
+                if (divisorOffset + 3 * batchSize >= divisorCount1D)
                     grl.AppendTimingMark("After kernel(1D) calls");
 
                 divisorOffset += batchSize;
@@ -213,9 +214,16 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 int>(SieveKernel2D);
             do
             {
+                var batchSize2D = Math.Min(xDim, divisorCount - divisorOffset);
+
+                while (batchSize2D * yDim * 2 <= _computeUnits)
+                {
+                    yDim *= 2;
+                }
+
                 kernel2D(
                     _accelerator.DefaultStream,
-                    new Index2D(xDim, yDim),
+                    new Index2D(batchSize2D, yDim),
                     sieveBuffer.View,
                     startBytesBuffer.View,
                     startBitsBuffer.View,
@@ -231,7 +239,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 _accelerator.Synchronize();
 
                 grl.AppendTimingMark("After kernel(2D) call");
-                divisorOffset += xDim;
+                divisorOffset += batchSize2D;
 
             } while (divisorOffset < divisorCount);
 
