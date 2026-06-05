@@ -5,23 +5,14 @@ namespace ArrayPrimes2022.Sieve;
 
 internal sealed class ComputeSharpSieveBackend : ISieveBackend
 {
-    public static float GpuMultiplier { get; set; } = 1.0f;
-    private const string GraphicsDriversRegistryPath = @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers";
-    private const string GraphicsDriverKeyName = "TdrDelay";
-    //this needs to be more than the expected time of the longest compute shader dispatch to prevent Windows from killing the GPU driver during long computations. Setting it to 88 seconds should be more than enough for our use case, but it can be adjusted if needed.
+    private static readonly SemaphoreSlim SieveBufferSemaphore = new(1, 1);
 
     private static readonly GraphicsDevice Device = GraphicsDevice.GetDefault();
-    private static int _maxSimultaneousAllocateAndDispatchSieveBuffers = 6;
-    private static SemaphoreSlim _allocateAndDispatchSieveBuffersSemaphore = new(_maxSimultaneousAllocateAndDispatchSieveBuffers, _maxSimultaneousAllocateAndDispatchSieveBuffers);
 
     public string Name => "ComputeSharp";
     public bool IsAvailable => (Device?.ComputeUnits ?? 0) > 0;
 
-    public static int LoopSize => _loopSize;
-    private static int _loopSize = 1024;
-
-    public static uint ComputeUnits => _computeUnits;
-    private static uint _computeUnits;
+    private static int _computeUnits;
 
     public ComputeSharpSieveBackend()
     {
@@ -36,39 +27,9 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                               $"\n\twith {device.WavefrontSize} max threads per group");
         }
 
-        _computeUnits = Device.ComputeUnits;
-        TrySetGraphicsDriversRegistryValue();
+        _computeUnits = Device.ComputeUnits > int.MaxValue ? int.MaxValue : (int)Device.ComputeUnits;
         Device.DeviceLost += Device_DeviceLost;
         Console.WriteLine($"Chosen device: {Device.Name}:{Device.Luid}");
-    }
-
-    public static void SetLoopSize(int taskLimit, float gpuMultiplier)
-    {
-        if (taskLimit == 0)
-            taskLimit = 1;
-        _loopSize = (int)(gpuMultiplier * _computeUnits / taskLimit);
-    }
-
-    private static void TrySetGraphicsDriversRegistryValue()
-    {
-        try
-        {
-            using var isKey = Registry.LocalMachine.OpenSubKey(GraphicsDriversRegistryPath);
-            var keyObjectValue = isKey?.GetValue(GraphicsDriverKeyName);
-            var currentValue = keyObjectValue as int?;
-
-            if ((currentValue ?? 0) >= 88)
-                return;
-
-            Console.WriteLine($"Updating HKLM\\{GraphicsDriversRegistryPath}\\{GraphicsDriverKeyName} to 88 current value = {currentValue ?? -1})");
-            using RegistryKey key = Registry.LocalMachine.CreateSubKey(GraphicsDriversRegistryPath, writable: true);
-            key.SetValue(GraphicsDriverKeyName, 88, RegistryValueKind.DWord);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Unable to update HKLM\\{GraphicsDriversRegistryPath}: {ex.Message}");
-            Console.Error.WriteLine($"Unable to update HKLM\\{GraphicsDriversRegistryPath}: {ex.Message}");
-        }
     }
 
     private static void Device_DeviceLost(object? sender, DeviceLostEventArgs e)
@@ -88,9 +49,14 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
     /// <param name="divisorsFillPosition"></param>
     /// <param name="divisorPosition"></param>
     /// <param name="sieveBytes"></param>
-    public void Execute(GapReport grl, ulong loopMinCheckedValue, uint[] fullDivisorList, uint[] offsets,
-        ulong divisorsFillPosition,
-        ulong divisorPosition, byte[] sieveBytes)
+    public void Execute(GapReport grl,
+    ulong loopMinCheckedValue,
+    uint[] fullDivisorList,
+    uint[] offsets,
+    ulong divisorsFillPosition,
+    ulong divisorPosition,
+    byte[] sieveBytes
+    )
     {
         var divisorCount = checked((int)(divisorsFillPosition - divisorPosition));
         if (divisorCount <= 0)
@@ -150,17 +116,19 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         var sieveWords = new uint[sieveBytes.Length / sizeof(uint)];
         Buffer.BlockCopy(sieveBytes, 0, sieveWords, 0, sieveBytes.Length);
 
-        var semaphore = _allocateAndDispatchSieveBuffersSemaphore;
+        grl.AppendTimingMark("BeforeSemaphoreWait");
+        var semaphore = SieveBufferSemaphore;
         semaphore.Wait();
         try
         {
-        	// we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
+            // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
             grl.AppendTimingMark("AfterSemaphoreWait");
             AllocateAndDispatchSieveBuffers(
-            sieveWords, 
-            startBytes, startBits, 
-            shortStepBytes, shortStepBits, 
-            longStepBytes, longStepBits, 
+                grl,
+            sieveWords,
+            startBytes, startBits,
+            shortStepBytes, shortStepBits,
+            longStepBytes, longStepBits,
             startsWithLongStep, divisorCount);
         }
         finally
@@ -171,29 +139,15 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         Buffer.BlockCopy(sieveWords, 0, sieveBytes, 0, sieveBytes.Length);
     }
 
-    public static int MaxSimultaneousAllocateAndDispatchSieveBuffers
-    {
-        get => _maxSimultaneousAllocateAndDispatchSieveBuffers;
-        set
-        {
-            var localValue = value > 0 ? value : 1;
-            _maxSimultaneousAllocateAndDispatchSieveBuffers = localValue;
-            Interlocked.Exchange(
-                ref _allocateAndDispatchSieveBuffersSemaphore,
-                new SemaphoreSlim(localValue, localValue));
-
-            SetLoopSize(localValue, GpuMultiplier);
-        }
-    }
-
     private static void AllocateAndDispatchSieveBuffers(
-    	uint[] sieveWords, 
-    	int[] startBytes, 
-    	int[] startBits,
-        int[] shortStepBytes, 
-        int[] shortStepBits, 
-        int[] longStepBytes, 
-        int[] longStepBits, 
+        GapReport grl,
+        uint[] sieveWords,
+        int[] startBytes,
+        int[] startBits,
+        int[] shortStepBytes,
+        int[] shortStepBits,
+        int[] longStepBytes,
+        int[] longStepBits,
         int[] startsWithLongStep,
         int divisorCount)
     {
@@ -209,10 +163,20 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
         // We dispatch the compute shader in batches of _loopSize divisors to avoid overwhelming the GPU with too many threads at once.
         // Each thread will handle one divisor and mark its multiples in the sieve.
+        // Dispatch the compute kernel in batches of _loopSize divisors
+        var yDim = 32;//_accelerator.WarpSize;
+        var xDim = _computeUnits / yDim;
+        var num2DLoops = 4.0 + (1.0 / 4.0);
+        var divisorCount1D = divisorCount - (int)(num2DLoops * xDim);
         var divisorOffset = 0;
+        var loop = 0;
+        var reportAt = divisorCount1D - 3 * _computeUnits;
         do
         {
-            Device.For(_loopSize, new ComputeSharpSieveShader(
+            loop++;
+            var batchSize = Math.Min(_computeUnits, divisorCount1D - divisorOffset);
+
+            Device.For(batchSize, new ComputeSharpSieveShader(
                 sieveBuffer,
                 startBytesBuffer,
                 startBitsBuffer,
@@ -225,8 +189,37 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 divisorCount,
                 sieveLength));
 
-            divisorOffset += _loopSize;
-        } while (divisorOffset < divisorCount);
+            if (divisorOffset >= reportAt)
+                grl.AppendTimingMark($"After {loop} kernel(1D) calls");
+
+            divisorOffset += batchSize;
+        } while (divisorOffset < divisorCount1D);
+        grl.AppendTimingMark("After Device.For (1D) calls");
+
+        do
+        {
+            var batchSize = Math.Min(xDim, divisorCount - divisorOffset);
+
+            //while (batchSize * yDim * 2 <= _computeUnits) yDim *= 2;
+
+            Device.For(batchSize, yDim, new ComputeSharpSieveShader2D(
+                sieveBuffer,
+                startBytesBuffer,
+                startBitsBuffer,
+                shortStepByteBuffer,
+                shortStepBitBuffer,
+                longStepByteBuffer,
+                longStepBitBuffer,
+                startsWithLongStepBuffer,
+                divisorOffset,
+                divisorCount,
+                sieveLength,
+                yDim));
+
+            divisorOffset += batchSize;
+        }
+        while (divisorOffset < divisorCount);
+        grl.AppendTimingMark("After Device.For (2D) calls");
 
         sieveBuffer.CopyTo(sieveWords);
     }
@@ -292,6 +285,110 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
         {
             var bitMask = 1u << offsetBit;
             //if ((sieveBytes[offsetByte] & bitMask) == 0) // this does not help.
+            Hlsl.InterlockedOr(ref sieveBytes[offsetByte], bitMask);
+
+            if (useLongStep)
+            {
+                offsetByte += longStepByte;
+                offsetBit += longStepBit;
+            }
+            else
+            {
+                offsetByte += shortStepByte;
+                offsetBit += shortStepBit;
+            }
+
+            if (offsetBit >= 32)
+            {
+                offsetBit -= 32;
+                offsetByte++;
+            }
+
+            useLongStep = !useLongStep;
+        }
+    }
+}
+
+[ThreadGroupSize(DefaultThreadGroupSizes.X)]
+[GeneratedComputeShaderDescriptor]
+internal readonly partial struct ComputeSharpSieveShader2D : IComputeShader
+{
+    private readonly ReadWriteBuffer<uint> sieveBytes;
+    private readonly ReadOnlyBuffer<int> startBytes;
+    private readonly ReadOnlyBuffer<int> startBits;
+    private readonly ReadOnlyBuffer<int> shortStepBytes;
+    private readonly ReadOnlyBuffer<int> shortStepBits;
+    private readonly ReadOnlyBuffer<int> longStepBytes;
+    private readonly ReadOnlyBuffer<int> longStepBits;
+    private readonly ReadOnlyBuffer<int> startsWithLongStep;
+    private readonly int divisorIndexOffset;
+    private readonly int divisorCount;
+    private readonly int sieveLength;
+    private readonly int yDim;
+
+    public ComputeSharpSieveShader2D(
+        ReadWriteBuffer<uint> sieveBytes,
+        ReadOnlyBuffer<int> startBytes,
+        ReadOnlyBuffer<int> startBits,
+        ReadOnlyBuffer<int> shortStepBytes,
+        ReadOnlyBuffer<int> shortStepBits,
+        ReadOnlyBuffer<int> longStepBytes,
+        ReadOnlyBuffer<int> longStepBits,
+        ReadOnlyBuffer<int> startsWithLongStep,
+        int divisorIndexOffset,
+        int divisorCount,
+        int sieveLength,
+        int yDim)
+    {
+        this.sieveBytes = sieveBytes;
+        this.startBytes = startBytes;
+        this.startBits = startBits;
+        this.shortStepBytes = shortStepBytes;
+        this.shortStepBits = shortStepBits;
+        this.longStepBytes = longStepBytes;
+        this.longStepBits = longStepBits;
+        this.startsWithLongStep = startsWithLongStep;
+        this.divisorIndexOffset = divisorIndexOffset;
+        this.divisorCount = divisorCount;
+        this.sieveLength = sieveLength;
+        this.yDim = yDim;
+    }
+
+    public void Execute()
+    {
+        var divisorIndex = ThreadIds.X + divisorIndexOffset;
+        if (divisorIndex >= divisorCount)
+            return;
+
+        var offsetByte = startBytes[divisorIndex];
+        var offsetBit = startBits[divisorIndex];
+        var shortStepByte = shortStepBytes[divisorIndex];
+        var shortStepBit = shortStepBits[divisorIndex];
+        var longStepByte = longStepBytes[divisorIndex];
+        var longStepBit = longStepBits[divisorIndex];
+        var useLongStep = startsWithLongStep[divisorIndex] != 0;
+
+        // Revise the offsets and sieve length for this thread based on its Y index,
+        // so that each Y thread processes a different portion of the sieve.
+        var totalNumDoubleSteps = sieveLength / ((shortStepByte + longStepByte) + (shortStepBit + longStepBit) / 32); // Approximate total number of double steps for this divisor
+        var offsetStart = ThreadIds.Y * totalNumDoubleSteps / yDim; // Starting double-step index for this thread
+        var offsetEnd = (1 + ThreadIds.Y) * totalNumDoubleSteps / yDim; // Ending double-step index for this thread
+        offsetByte += offsetStart * (shortStepByte + longStepByte);
+        offsetBit += offsetStart * (shortStepBit + longStepBit);
+        while (offsetBit >= 32) { offsetBit -= 32; offsetByte++; }
+        var newSieveLength = offsetEnd * (shortStepByte + longStepByte);
+        newSieveLength += (offsetEnd * (shortStepBit + longStepBit)) / 32;
+        newSieveLength++;
+        // Don't run over the end.
+        if (newSieveLength > sieveLength)
+            newSieveLength = sieveLength;
+        // Make sure the last thread completes the end of the sieve.
+        if (ThreadIds.Y + 1 >= yDim)
+            newSieveLength = sieveLength;
+
+        while (offsetByte < newSieveLength)
+        {
+            var bitMask = 1u << offsetBit;
             Hlsl.InterlockedOr(ref sieveBytes[offsetByte], bitMask);
 
             if (useLongStep)

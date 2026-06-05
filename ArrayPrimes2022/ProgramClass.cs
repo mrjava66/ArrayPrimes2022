@@ -266,28 +266,6 @@ internal static class ProgramClass
             Console.WriteLine(e);
         }
 
-        var gpuMultiplierStr = ConfigurationManager.AppSettings["GpuMultiplier"] ?? "1.0";
-        var didGetGpuMultiplier = float.TryParse(gpuMultiplierStr, out var gpuMultiplier);
-        if (didGetGpuMultiplier)
-        {
-            ComputeSharpSieveBackend.GpuMultiplier = gpuMultiplier;
-        }
-
-        var sieveTaskRatioStr = ConfigurationManager.AppSettings["SieveTaskRatio"] ?? "0.6";
-        if (float.TryParse(sieveTaskRatioStr, out var sieveTaskRatio))
-        {
-            if (sieveTaskRatio < 0)
-                sieveTaskRatio *= -1;
-            if (sieveTaskRatio != 0)
-            {
-                ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = (int)Math.Round(sieveTaskRatio * _taskLimit);
-            }
-        }
-        else
-        {
-            ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers = _taskLimit;
-        }
-
         const string linear = "linear";
         var blockOrder = (ConfigurationManager.AppSettings["BlockOrder"] ?? linear).ToLower();
 
@@ -377,11 +355,8 @@ internal static class ProgramClass
                           $"QuickCheck={quickCheckReport},\n" +
                           $"Reverse={_reverse},\n" +
                           $"BlockOffset={_blockOffset},\n" +
-                          $"CS.ComputeUnits={ComputeSharpSieveBackend.ComputeUnits},\n" +
-                          $"CS.LoopSize={ComputeSharpSieveBackend.LoopSize},\n" +
-                          $"CS.Semaphore={ComputeSharpSieveBackend.MaxSimultaneousAllocateAndDispatchSieveBuffers},\n" +
-                          $"SieveBackend={sieveBackendSetting},\n" +
-                          $"GpuMultiplier={gpuMultiplier}");
+                          $"Requested SieveBackend={sieveBackendSetting},\n" +
+                          $"Active SieveBackend={_activeSieveBackend?.Name ?? "None"}");
     }
 
     /// <summary>

@@ -36,7 +36,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"No CUDA-capable NVIDIA devices found. {ex}");
+            Console.WriteLine($"No CUDA-capable NVIDIA devices found. {ex.Message}");
         }
     }
 
@@ -170,8 +170,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             var num2DLoops = 2.0 + 1.0 / 8.0;  //.4 and .9s for the last 2D-Loops with 1/4 
             var divisorCount1D = (int)(divisorCount - num2DLoops * xDim);
             var divisorOffset = 0;
+            var loop = 0;
+            var reportAt = divisorCount1D - 3 * _computeUnits;
             do
             {
+                loop++;
                 var batchSize = Math.Min(_computeUnits, divisorCount1D - divisorOffset);
 
                 kernel(
@@ -191,8 +194,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 _accelerator.Synchronize();
 
                 // if the next loop will be the last 1D loop, mark the time after this loop as "After kernel(1D) calls" to include the time spent in the last 1D loop in that timing.
-                if (divisorOffset + 3 * batchSize >= divisorCount1D)
-                    grl.AppendTimingMark($"After {batchSize} kernel(1D) call");
+                if (divisorOffset >= reportAt)
+                    grl.AppendTimingMark($"After {loop} kernel(1D) calls");
 
                 divisorOffset += batchSize;
             } while (divisorOffset < divisorCount1D);
