@@ -167,7 +167,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             // Dispatch the compute kernel in batches of _loopSize divisors
             var yDim = _accelerator.WarpSize;
             var xDim = _computeUnits / yDim;
-            var num2DLoops = 2.25;
+            var num2DLoops = 2.0 + 1.0 / 8.0;  //.4 and .9s for the last 2D-Loops with 1/4 
             var divisorCount1D = (int)(divisorCount - num2DLoops * xDim);
             var divisorOffset = 0;
             do
@@ -192,11 +192,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
                 // if the next loop will be the last 1D loop, mark the time after this loop as "After kernel(1D) calls" to include the time spent in the last 1D loop in that timing.
                 if (divisorOffset + 3 * batchSize >= divisorCount1D)
-                    grl.AppendTimingMark("After kernel(1D) calls");
+                    grl.AppendTimingMark($"After {batchSize} kernel(1D) call");
 
                 divisorOffset += batchSize;
             } while (divisorOffset < divisorCount1D);
-            grl.AppendTimingMark("After kernel(1D) calls");
+            grl.AppendTimingMark("After all kernel(1D) calls");
 
             var kernel2D = _accelerator.LoadAutoGroupedKernel<
                 Index2D,
@@ -238,7 +238,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     yDim);
                 _accelerator.Synchronize();
 
-                grl.AppendTimingMark("After kernel(2D) call");
+                grl.AppendTimingMark($"After {batchSize2D},{yDim} kernel(2D) call");
                 divisorOffset += batchSize2D;
 
             } while (divisorOffset < divisorCount);
