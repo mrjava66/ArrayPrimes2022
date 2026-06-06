@@ -65,6 +65,7 @@ public class GapReport(GapReportCarryState gapReportCarryState)
         gapFile.Flush();
     }
 
+    private DateTime _lastTimingMarkTime = DateTime.Now;
     /// <summary>
     /// Appends a "Not Gap" timing checkpoint to the log builder. Used to measure how long
     /// each phase of the sieve (anvil copy, sieve pass, etc.) takes within a segment.
@@ -72,7 +73,8 @@ public class GapReport(GapReportCarryState gapReportCarryState)
     /// <param name="extra">A label identifying the checkpoint, e.g. "AfterBlockCopy".</param>
     public void AppendTimingMark(string extra)
     {
-        _gapFileBuilder.AppendLine($"Not Gap,0,Primes,0,{extra},{(DateTime.Now - _startTime).TotalSeconds}");
+        _gapFileBuilder.AppendLine($"Not Gap,0,Primes,0,{extra},{(DateTime.Now - _startTime).TotalSeconds:F3},{(DateTime.Now - _lastTimingMarkTime).TotalSeconds:F3}");
+        _lastTimingMarkTime = DateTime.Now;
     }
 
     /// <summary>
@@ -81,7 +83,9 @@ public class GapReport(GapReportCarryState gapReportCarryState)
     /// short-circuits to 0 for performance; un-comment the body to restore live timing.
     /// </summary>
     //calc this at most once per RecordPrime call.
+#pragma warning disable IDE0060 // Remove unused parameter
     private double GetElapsedSeconds(ref double totalSeconds)
+#pragma warning restore IDE0060 // Remove unused parameter
     {
         return 0;
 #pragma warning disable CS0162 // Unreachable code detected

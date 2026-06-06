@@ -241,7 +241,9 @@ internal readonly partial struct ComputeSharpSieveShader : IComputeShader
     private readonly int divisorCount;
     private readonly int sieveLength;
 
+#pragma warning disable IDE0290 // Use primary constructor
     public ComputeSharpSieveShader(
+#pragma warning restore IDE0290 // Use primary constructor
         ReadWriteBuffer<uint> sieveBytes,
         ReadOnlyBuffer<int> startBytes,
         ReadOnlyBuffer<int> startBits,
@@ -326,7 +328,9 @@ internal readonly partial struct ComputeSharpSieveShader2D : IComputeShader
     private readonly int sieveLength;
     private readonly int yDim;
 
+#pragma warning disable IDE0290 // Use primary constructor
     public ComputeSharpSieveShader2D(
+#pragma warning restore IDE0290 // Use primary constructor
         ReadWriteBuffer<uint> sieveBytes,
         ReadOnlyBuffer<int> startBytes,
         ReadOnlyBuffer<int> startBits,

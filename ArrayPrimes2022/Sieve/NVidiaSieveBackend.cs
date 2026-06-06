@@ -132,7 +132,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         if (!IsAvailable || _accelerator == null)
             throw new InvalidOperationException("CUDA accelerator is not available.");
 
-        grl.AppendTimingMark("BeforeOuterSemaphoreWait");
+        grl.AppendTimingMark("BeforeSemaphoreWait");
         var semaphore = SieveBufferSemaphore;
         semaphore.Wait();
         try
@@ -167,11 +167,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             // Dispatch the compute kernel in batches of _loopSize divisors
             var yDim = _accelerator.WarpSize;
             var xDim = _computeUnits / yDim;
-            var num2DLoops = 2.0 + 1.0 / 8.0;  //.4 and .9s for the last 2D-Loops with 1/4 
+            var num2DLoops = 4.0 + 1.0 / 4.0;  //.4 and .9s for the last 2D-Loops with 1/4 
             var divisorCount1D = (int)(divisorCount - num2DLoops * xDim);
             var divisorOffset = 0;
             var loop = 0;
-            var reportAt = divisorCount1D - 3 * _computeUnits;
+            var reportAt = divisorCount1D - 2 * _computeUnits;
             do
             {
                 loop++;
@@ -215,6 +215,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 int,
                 int,
                 int>(SieveKernel2D);
+
             do
             {
                 var batchSize2D = Math.Min(xDim, divisorCount - divisorOffset);
@@ -223,6 +224,9 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 {
                     yDim *= 2;
                 }
+
+                if (yDim > 255)
+                    yDim = 255;
 
                 kernel2D(
                     _accelerator.DefaultStream,
