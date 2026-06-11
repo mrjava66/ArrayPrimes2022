@@ -171,11 +171,16 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             var divisorCount1D = (int)(divisorCount - num2DLoops * xDim);
             var divisorOffset = 0;
             var loop = 0;
-            var reportAt = divisorCount1D - 2 * _computeUnits;
+            var reportAt = divisorCount1D - 4 * _computeUnits;
+            var maxBatchSize = _computeUnits * 256;
             do
             {
                 loop++;
-                var batchSize = Math.Min(_computeUnits, divisorCount1D - divisorOffset);
+
+                var batchSize = Math.Min(maxBatchSize, (divisorCount1D - divisorOffset) / 2); // do half, but not more than the max for a single 1D batch
+                if (batchSize < _computeUnits)
+                    batchSize = _computeUnits;
+                batchSize = Math.Min(batchSize, divisorCount1D - divisorOffset); // don't run over the end.
 
                 kernel(
                     _accelerator.DefaultStream,
@@ -221,9 +226,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 var batchSize2D = Math.Min(xDim, divisorCount - divisorOffset);
 
                 while (batchSize2D * yDim * 2 <= _computeUnits)
-                {
                     yDim *= 2;
-                }
 
                 if (yDim > 255)
                     yDim = 255;
@@ -245,7 +248,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     yDim);
                 _accelerator.Synchronize();
 
-                grl.AppendTimingMark($"After {batchSize2D},{yDim} kernel(2D) call");
+                grl.AppendTimingMark($"After {batchSize2D},{yDim} kernel(2D) call. lastP:{longStepBytes[divisorOffset + batchSize2D - 1] * 32 + longStepBits[divisorOffset + batchSize2D - 1] + 1}");
                 divisorOffset += batchSize2D;
 
             } while (divisorOffset < divisorCount);

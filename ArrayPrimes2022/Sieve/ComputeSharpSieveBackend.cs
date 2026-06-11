@@ -170,11 +170,18 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         var divisorCount1D = divisorCount - (int)(num2DLoops * xDim);
         var divisorOffset = 0;
         var loop = 0;
-        var reportAt = divisorCount1D - 3 * _computeUnits;
+        divisorCount1D -= _computeUnits / 2;
+        divisorCount1D -= _computeUnits / 4;
+        var reportAt = divisorCount1D - 4 * _computeUnits;
+        var maxBatchSize = _computeUnits * 256;
         do
         {
             loop++;
-            var batchSize = Math.Min(_computeUnits, divisorCount1D - divisorOffset);
+
+            var batchSize = Math.Min(maxBatchSize, (divisorCount1D - divisorOffset) / 2); // do half, but not more than the max for a single 1D batch
+            if (batchSize < _computeUnits)
+                batchSize = _computeUnits;
+            batchSize = Math.Min(batchSize, divisorCount1D - divisorOffset); // don't run over the end.
 
             Device.For(batchSize, new ComputeSharpSieveShader(
                 sieveBuffer,
@@ -190,17 +197,51 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 sieveLength));
 
             if (divisorOffset >= reportAt)
-                grl.AppendTimingMark($"After {loop} kernel(1D) calls");
+                grl.AppendTimingMark($"After {loop} kernel(1D) call with {batchSize} divisors");
 
             divisorOffset += batchSize;
         } while (divisorOffset < divisorCount1D);
         grl.AppendTimingMark("After Device.For (1D) calls");
 
+        Device.For(_computeUnits / 2, 2, new ComputeSharpSieveShader2D(
+            sieveBuffer,
+            startBytesBuffer,
+            startBitsBuffer,
+            shortStepByteBuffer,
+            shortStepBitBuffer,
+            longStepByteBuffer,
+            longStepBitBuffer,
+            startsWithLongStepBuffer,
+            divisorOffset,
+            divisorCount,
+            sieveLength,
+            2));
+        grl.AppendTimingMark($"After Device.For 1, 2, {_computeUnits / 2}(2D) call");
+        divisorOffset += _computeUnits / 2;
+
+        Device.For(_computeUnits / 4, 4, new ComputeSharpSieveShader2D(
+            sieveBuffer,
+            startBytesBuffer,
+            startBitsBuffer,
+            shortStepByteBuffer,
+            shortStepBitBuffer,
+            longStepByteBuffer,
+            longStepBitBuffer,
+            startsWithLongStepBuffer,
+            divisorOffset,
+            divisorCount,
+            sieveLength,
+            4));
+        grl.AppendTimingMark($"After Device.For 1, 4, {_computeUnits / 4}(2D) call");
+        divisorOffset += _computeUnits / 4;
+
+        loop = 0;
         do
         {
+            loop++;
             var batchSize = Math.Min(xDim, divisorCount - divisorOffset);
 
-            //while (batchSize * yDim * 2 <= _computeUnits) yDim *= 2;
+            while (batchSize * yDim * 2 <= _computeUnits) yDim *= 2;
 
             Device.For(batchSize, yDim, new ComputeSharpSieveShader2D(
                 sieveBuffer,
@@ -215,6 +256,11 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 divisorCount,
                 sieveLength,
                 yDim));
+            var lastPos = divisorOffset + batchSize - 1;
+            var by = shortStepBytes[lastPos];
+            var bi = shortStepBits[lastPos];
+            var lastPrime = by * 32 + bi;
+            grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {batchSize}(2D) call, last prime: {lastPrime}");
 
             divisorOffset += batchSize;
         }
