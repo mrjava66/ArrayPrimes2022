@@ -197,7 +197,10 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 sieveLength));
 
             if (divisorOffset >= reportAt)
-                grl.AppendTimingMark($"After {loop} kernel(1D) call with {batchSize} divisors");
+            {
+                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, batchSize);
+                grl.AppendTimingMark($"After {loop} kernel(1D) call with {batchSize} divisors, last prime: {lastPrime}");
+            }
 
             divisorOffset += batchSize;
         } while (divisorOffset < divisorCount1D);
@@ -256,10 +259,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 divisorCount,
                 sieveLength,
                 yDim));
-            var lastPos = divisorOffset + batchSize - 1;
-            var by = shortStepBytes[lastPos];
-            var bi = shortStepBits[lastPos];
-            var lastPrime = by * 32 + bi;
+            var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, batchSize);
             grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {batchSize}(2D) call, last prime: {lastPrime}");
 
             divisorOffset += batchSize;
@@ -268,6 +268,15 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         grl.AppendTimingMark("After Device.For (2D) calls");
 
         sieveBuffer.CopyTo(sieveWords);
+    }
+
+    private static int LastPrimeSieved(int[] shortStepBytes, int[] shortStepBits, int divisorOffset, int batchSize)
+    {
+        var lastPos = divisorOffset + batchSize - 1;
+        var by = shortStepBytes[lastPos];
+        var bi = shortStepBits[lastPos];
+        var lastPrime = by * 32 + bi;
+        return lastPrime;
     }
 }
 

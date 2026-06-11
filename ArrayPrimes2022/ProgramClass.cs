@@ -127,7 +127,8 @@ internal static class ProgramClass
         //23, 29, 31, 37, 41,
         //43, 47, 53, 59,
         //61, 67, 71, 73,
-        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73 };
+        //79, 83, 89, 97,
+        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 };
 
         var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 1, 7));
         taskBuildAnvil0.Wait();
@@ -141,16 +142,20 @@ internal static class ProgramClass
         var taskBuildAnvil1 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 8, 12));
         var taskBuildAnvil2 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 13, 16));
         var taskBuildAnvil3 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 17, 20));
+        var taskBuildAnvil4 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 21, 24));
         taskBuildAnvil1.Wait();
         taskBuildAnvil2.Wait();
         taskBuildAnvil3.Wait();
+        taskBuildAnvil4.Wait();
         Anvils.Add(taskBuildAnvil1.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil1.Result.Item2);
         Anvils.Add(taskBuildAnvil2.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil2.Result.Item2);
         Anvils.Add(taskBuildAnvil3.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil3.Result.Item2);
-        _anvilDivisorPosition = 20;
+        Anvils.Add(taskBuildAnvil4.Result.Item1);
+        AnvilSizes.Add(taskBuildAnvil4.Result.Item2);
+        _anvilDivisorPosition = 24;
     }
 
     /// <summary>
@@ -356,7 +361,7 @@ internal static class ProgramClass
                           $"Reverse={_reverse},\n" +
                           $"BlockOffset={_blockOffset},\n" +
                           $"Requested SieveBackend={sieveBackendSetting},\n" +
-                          $"Active SieveBackend={_activeSieveBackend?.Name ?? "None"}");
+                          $"Active SieveBackend={_activeSieveBackend.Name}");
     }
 
     /// <summary>
@@ -1101,8 +1106,8 @@ internal static class ProgramClass
 
             if (!_lessRamMemory)
             {
-                var notOffsets = new ulong[4];
-                for (var i = 1; i <= 3; i++)
+                var notOffsets = new ulong[Anvils.Count];
+                for (var i = 1; i < Anvils.Count; i++)
                 {
                     var notOffsetMore = loopMinCheckedValue / 2 % AnvilSizes[i];
                     while (notOffsetMore % 8 != 0)
@@ -1198,7 +1203,8 @@ internal static class ProgramClass
     /// </summary>
     private static void ApplyAnvilLayers(byte[] bytes00, ulong[] notOffsets)
     {
-        for (var j = 1; j <= 3; j++)
+        // check for out-of-bounds before we start writing, to avoid partial writes if there is a problem.
+        for (var j = 1; j < Anvils.Count; j++)
         {
             if (notOffsets[j] + Two28 > int.MaxValue)
                 throw new Exception($"Cannot work with offset0,{j},{notOffsets[j]}");
@@ -1209,15 +1215,23 @@ internal static class ProgramClass
                 throw new Exception($"Cannot work with offset2,{notOffsets[j]},{AnvilSizes[j]}");
         }
 
+        // apply the layers.
+        // this is quicker without a for-loop
         var a1 = (int)notOffsets[1];
         var a2 = (int)notOffsets[2];
         var a3 = (int)notOffsets[3];
+        var a4 = (int)notOffsets[4];
         for (var i = 0; i < bytes00.Length; i++)
         {
             var b = bytes00[i];
             b |= Anvils[1][a1 + i];
             b |= Anvils[2][a2 + i];
             b |= Anvils[3][a3 + i];
+            b |= Anvils[4][a4 + i];
+
+            //3, 5, 7, 11, 13, 17, 19 mark a lot of bits,
+            //sometimes the other anvils don't hit any.
+            //It is quicker to check than always apply.
             if ((b & bytes00[i]) != 0)
                 bytes00[i] = b;
         }
