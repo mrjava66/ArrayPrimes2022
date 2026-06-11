@@ -127,8 +127,11 @@ internal static class ProgramClass
         //23, 29, 31, 37, 41,
         //43, 47, 53, 59,
         //61, 67, 71, 73,
-        //79, 83, 89, 97,
-        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 };
+        //79, 83, 89,
+        //97, 101, 103,
+        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 
+            31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 
+            73, 79, 83, 89, 97, 101, 103  };
 
         var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 1, 7));
         taskBuildAnvil0.Wait();
@@ -142,11 +145,13 @@ internal static class ProgramClass
         var taskBuildAnvil1 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 8, 12));
         var taskBuildAnvil2 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 13, 16));
         var taskBuildAnvil3 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 17, 20));
-        var taskBuildAnvil4 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 21, 24));
+        var taskBuildAnvil4 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 21, 23));
+        var taskBuildAnvil5 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 24, 26));
         taskBuildAnvil1.Wait();
         taskBuildAnvil2.Wait();
         taskBuildAnvil3.Wait();
         taskBuildAnvil4.Wait();
+        taskBuildAnvil5.Wait();
         Anvils.Add(taskBuildAnvil1.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil1.Result.Item2);
         Anvils.Add(taskBuildAnvil2.Result.Item1);
@@ -155,7 +160,9 @@ internal static class ProgramClass
         AnvilSizes.Add(taskBuildAnvil3.Result.Item2);
         Anvils.Add(taskBuildAnvil4.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil4.Result.Item2);
-        _anvilDivisorPosition = 24;
+        Anvils.Add(taskBuildAnvil5.Result.Item1);
+        AnvilSizes.Add(taskBuildAnvil5.Result.Item2);   
+        _anvilDivisorPosition = 26;
     }
 
     /// <summary>
@@ -1221,6 +1228,7 @@ internal static class ProgramClass
         var a2 = (int)notOffsets[2];
         var a3 = (int)notOffsets[3];
         var a4 = (int)notOffsets[4];
+        var a5 = (int)notOffsets[5];
         for (var i = 0; i < bytes00.Length; i++)
         {
             var b = bytes00[i];
@@ -1228,6 +1236,7 @@ internal static class ProgramClass
             b |= Anvils[2][a2 + i];
             b |= Anvils[3][a3 + i];
             b |= Anvils[4][a4 + i];
+            b |= Anvils[5][a5 + i];
 
             //3, 5, 7, 11, 13, 17, 19 mark a lot of bits,
             //sometimes the other anvils don't hit any.
