@@ -129,9 +129,14 @@ internal static class ProgramClass
         //61, 67, 71, 73,
         //79, 83, 89,
         //97, 101, 103,
-        var dl = new[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 
-            31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 
-            73, 79, 83, 89, 97, 101, 103  };
+        var dl = new[] { 2,
+            3, 5, 7, 11, 13, 17, 19,
+            23, 29, 31, 37, 41,
+            43, 47, 53, 59,
+            61, 67, 71, 73,
+            79, 83, 89,
+            97, 101, 103
+        };
 
         var taskBuildAnvil0 = Task.Factory.StartNew(() => BuildAnvilLayer(dl, 1, 7));
         taskBuildAnvil0.Wait();
@@ -161,7 +166,7 @@ internal static class ProgramClass
         Anvils.Add(taskBuildAnvil4.Result.Item1);
         AnvilSizes.Add(taskBuildAnvil4.Result.Item2);
         Anvils.Add(taskBuildAnvil5.Result.Item1);
-        AnvilSizes.Add(taskBuildAnvil5.Result.Item2);   
+        AnvilSizes.Add(taskBuildAnvil5.Result.Item2);
         _anvilDivisorPosition = 26;
     }
 

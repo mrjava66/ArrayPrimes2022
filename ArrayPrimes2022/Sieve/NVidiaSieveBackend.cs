@@ -172,7 +172,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             var divisorOffset = 0;
             var loop = 0;
             var reportAt = divisorCount1D - 4 * _computeUnits;
-            var maxBatchSize = _computeUnits * 256;
+            var maxBatchSize = _computeUnits * _accelerator.MaxNumThreadsPerGroup;
             do
             {
                 loop++;
@@ -198,9 +198,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     (int)sieveLength);
                 _accelerator.Synchronize();
 
-                // if the next loop will be the last 1D loop, mark the time after this loop as "After kernel(1D) calls" to include the time spent in the last 1D loop in that timing.
                 if (divisorOffset >= reportAt)
-                    grl.AppendTimingMark($"After {loop} kernel(1D) calls");
+                {
+                    var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, batchSize);
+                    grl.AppendTimingMark($"After {loop} kernel(1D) call with {batchSize} divisors, last prime: {lastPrime}");
+                }
 
                 divisorOffset += batchSize;
             } while (divisorOffset < divisorCount1D);
@@ -248,7 +250,9 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     yDim);
                 _accelerator.Synchronize();
 
-                grl.AppendTimingMark($"After {batchSize2D},{yDim} kernel(2D) call. lastP:{longStepBytes[divisorOffset + batchSize2D - 1] * 32 + longStepBits[divisorOffset + batchSize2D - 1] + 1}");
+                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, batchSize2D);
+                grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {batchSize2D}(2D) call, last prime: {lastPrime}");
+
                 divisorOffset += batchSize2D;
 
             } while (divisorOffset < divisorCount);
@@ -260,6 +264,15 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         {
             semaphore.Release();
         }
+    }
+
+    private static int LastPrimeSieved(int[] shortStepBytes, int[] shortStepBits, int divisorOffset, int batchSize)
+    {
+        var lastPos = divisorOffset + batchSize - 1;
+        var by = shortStepBytes[lastPos];
+        var bi = shortStepBits[lastPos];
+        var lastPrime = by * 32 + bi;
+        return lastPrime;
     }
 
     private static void SieveKernel(
