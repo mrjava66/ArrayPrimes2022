@@ -133,9 +133,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         if (!IsAvailable || _accelerator == null)
             throw new InvalidOperationException("CUDA accelerator is not available.");
 
-        var workTry = new int[divisorCount];
-        var workDo = new int[divisorCount];
-
         grl.AppendTimingMark("BeforeSemaphoreWait");
         var semaphore = SieveBufferSemaphore;
         semaphore.Wait();
@@ -153,8 +150,10 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             using var longStepBitsBuffer = _accelerator.Allocate1D(longStepBits);
             using var startsWithLongStepBuffer = _accelerator.Allocate1D(startsWithLongStep);
 
-            using var workTryBuffer = _accelerator.Allocate1D(workTry);
-            using var workDoBuffer = _accelerator.Allocate1D(workDo);
+            //var workTry = new int[divisorCount];
+            //var workDo = new int[divisorCount];
+            //using var workTryBuffer = _accelerator.Allocate1D(workTry);
+            //using var workDoBuffer = _accelerator.Allocate1D(workDo);
 
             // Load and compile the kernel (cached after first call)
             var kernel = _accelerator.LoadAutoGroupedKernel<
@@ -167,8 +166,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 ArrayView<int>,
                 ArrayView<int>,
                 ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
+                //ArrayView<int>,
+                //ArrayView<int>,
                 int,
                 int,
                 int>(SieveKernel);
@@ -202,8 +201,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     longStepBytesBuffer.View,
                     longStepBitsBuffer.View,
                     startsWithLongStepBuffer.View,
-                    workTryBuffer.View,
-                    workDoBuffer.View,
+                    //workTryBuffer.View,
+                    //workDoBuffer.View,
                     divisorOffset,
                     divisorCount,
                     (int)sieveLength);
@@ -229,8 +228,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 ArrayView<int>,
                 ArrayView<int>,
                 ArrayView<int>,
-                    ArrayView<int>,
-                    ArrayView<int>,
+                //ArrayView<int>,
+                //ArrayView<int>,
                 int,
                 int,
                 int,
@@ -238,6 +237,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
             do
             {
+                loop++;
+
                 var batchSize2D = Math.Min(xDim, divisorCount - divisorOffset);
 
                 while (batchSize2D * yDim * 2 <= _computeUnits)
@@ -257,8 +258,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     longStepBytesBuffer.View,
                     longStepBitsBuffer.View,
                     startsWithLongStepBuffer.View,
-                    workTryBuffer.View,
-                    workDoBuffer.View,
+                    //workTryBuffer.View,
+                    //workDoBuffer.View,
                     divisorOffset,
                     divisorCount,
                     (int)sieveLength,
@@ -273,6 +274,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             } while (divisorOffset < divisorCount);
 
             sieveBuffer.CopyToCPU(sieveWords);
+            /*
             workTryBuffer.CopyToCPU(workTry);
             workDoBuffer.CopyToCPU(workDo);
 
@@ -287,6 +289,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 divOff += delta;
             }
             grl.AppendTimingMark(sa.ToString());
+            */
             grl.AppendTimingMark("After sieveBuffer.CopyToCPU");
         }
         finally
@@ -314,8 +317,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         ArrayView<int> longStepBytes,
         ArrayView<int> longStepBits,
         ArrayView<int> startsWithLongStep,
-        ArrayView<int> workTry,
-        ArrayView<int> workDo,
+        //ArrayView<int> workTry,
+        //ArrayView<int> workDo,
         int divisorIndexOffset,
         int divisorCount,
         int sieveLength)
@@ -332,7 +335,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         var longStepBit = longStepBits[divisorIndex];
         var useLongStep = startsWithLongStep[divisorIndex] != 0;
 
-        UpdateSieveBytes(sieveBytes, workTry, workDo, divisorIndex, sieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
+        UpdateSieveBytes(sieveBytes, /*workTry, workDo, divisorIndex,*/ sieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
     }
 
     private static void SieveKernel2D(
@@ -345,8 +348,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         ArrayView<int> longStepBytes,
         ArrayView<int> longStepBits,
         ArrayView<int> startsWithLongStep,
-        ArrayView<int> workTry,
-        ArrayView<int> workDo,
+        //ArrayView<int> workTry,
+        //ArrayView<int> workDo,
         int divisorIndexOffset,
         int divisorCount,
         int sieveLength,
@@ -383,20 +386,23 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         if (index.Y + 1 >= yDim)
             newSieveLength = sieveLength;
 
-        UpdateSieveBytes(sieveBytes, workTry, workDo, divisorIndex, newSieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
+        UpdateSieveBytes(sieveBytes, /*workTry, workDo, divisorIndex,*/ newSieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
     }
 
-    private static void UpdateSieveBytes(ArrayView<uint> sieveBytes, ArrayView<int> workTry, ArrayView<int> workDo, int divisorIndex, int sieveLength, int offsetByte, int offsetBit,
+    private static void UpdateSieveBytes(ArrayView<uint> sieveBytes, 
+        /*ArrayView<int> workTry, ArrayView<int> workDo, int divisorIndex, */
+        int sieveLength, int offsetByte, int offsetBit,
         bool useLongStep, int longStepByte, int longStepBit, int shortStepByte, int shortStepBit)
     {
         while (offsetByte < sieveLength)
         {
             var bitMask = 1u << offsetBit;
             var oldVal = Atomic.Or(ref sieveBytes[offsetByte], bitMask);
+            /*
             Atomic.Add(ref workTry[divisorIndex], 1);
             if ((oldVal & bitMask) == 0)
                 Atomic.Add(ref workDo[divisorIndex], 1);
-
+            */
             if (useLongStep)
             {
                 offsetByte += longStepByte;
