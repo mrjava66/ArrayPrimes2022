@@ -135,9 +135,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
         grl.AppendTimingMark("BeforeSemaphoreWait");
         var semaphore = SieveBufferSemaphore;
+        DateTime timeBeforeWait = DateTime.UtcNow;
         semaphore.Wait();
         try
         {
+            SetPreworkTime(DateTime.UtcNow - timeBeforeWait);
             // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
             grl.AppendTimingMark("AfterSemaphoreWait");
             using var sieveBuffer = _accelerator.Allocate1D(sieveWords);
@@ -293,6 +295,22 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         {
             semaphore.Release();
         }
+    }
+
+    private static TimeSpan _preworkTime;
+    private static readonly TimeSpan TimeWaitGoal = new(0, 0, 0, 2);
+
+    public TimeSpan GetPreworkTime()
+    {
+        return _preworkTime;
+    }
+
+    private void SetPreworkTime(TimeSpan timeWaited)
+    {
+        var miss = TimeWaitGoal - timeWaited;
+        _preworkTime += TimeSpan.FromMilliseconds(miss.TotalMilliseconds / 10);
+        if (_preworkTime.TotalSeconds < 0)
+            _preworkTime = TimeSpan.Zero;
     }
 
     private static int LastPrimeSieved(int[] shortStepBytes, int[] shortStepBits, int divisorOffset, int batchSize)

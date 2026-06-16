@@ -102,9 +102,9 @@ internal static class ProgramClass
 
     private static readonly TimeSpan GetPreviousWorkCadence = new(1, 0, 0);
     private static DateTime _getPreviousWorkTime = DateTime.Now + GetPreviousWorkCadence;
-    private static readonly ISieveBackend CpuSieveBackendInstance = new CpuSieveBackend(Two28);
-    private static readonly ISieveBackend ComputeSharpSieveBackendInstance = new ComputeSharpSieveBackend();
-    private static readonly ISieveBackend NVidiaSieveBackendInstance = new NVidiaSieveBackend();
+    private static readonly CpuSieveBackend CpuSieveBackendInstance = new CpuSieveBackend(Two28);
+    private static readonly ComputeSharpSieveBackend ComputeSharpSieveBackendInstance = new ComputeSharpSieveBackend();
+    private static readonly NVidiaSieveBackend NVidiaSieveBackendInstance = new NVidiaSieveBackend();
     private static ISieveBackend _activeSieveBackend = CpuSieveBackendInstance;
     private static bool _gpuFallbackTriggered;
 
@@ -998,6 +998,14 @@ internal static class ProgramClass
 
         try
         {
+            if (_activeSieveBackend == NVidiaSieveBackendInstance)
+            {
+                var prework = NVidiaSieveBackendInstance.GetPreworkTime();
+                if (prework.TotalSeconds > 1)
+                {
+                    divisorPosition = CpuSieveBackendInstance.ExecuteSome(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0, prework);
+                }
+            }
             _activeSieveBackend.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
         }
         catch (Exception ex) when (!ReferenceEquals(_activeSieveBackend, CpuSieveBackendInstance))
