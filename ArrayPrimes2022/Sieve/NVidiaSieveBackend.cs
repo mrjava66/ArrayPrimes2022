@@ -175,20 +175,19 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             // Dispatch the compute kernel in batches of _loopSize divisors
             var yDim = _accelerator.WarpSize;
             var xDim = _computeUnits / yDim;
-            var num2DLoops = 4.0 + 1.0 / 4.0;  //.4 and .9s for the last 2D-Loops with 1/4 
-            var divisorCount1D = (int)(divisorCount - num2DLoops * xDim);
+            var num2DLoops = 5;
+            var divisorCount1D = divisorCount - num2DLoops * xDim;
             var divisorOffset = 0;
             var loop = 0;
-            var reportAt = divisorCount1D - 4 * _computeUnits;
+            var reportAt = divisorCount1D - 5 * _computeUnits;
             var maxBatchSize = _computeUnits * _accelerator.MaxNumThreadsPerGroup;
             do
             {
                 loop++;
 
                 var batchSize = Math.Min(maxBatchSize, (divisorCount1D - divisorOffset) / 2); // do half, but not more than the max for a single 1D batch
-                if (batchSize < _computeUnits)
-                    batchSize = _computeUnits;
-                batchSize = Math.Min(batchSize, divisorCount1D - divisorOffset); // don't run over the end.
+                if (batchSize < _computeUnits) batchSize = _computeUnits; // but don't do less than the number of compute units.  This prevents getting stuck in this loop with very small batch sizes.
+                batchSize = Math.Min(batchSize, divisorCount1D - divisorOffset); // don't run over the planned end of 1D loop sieving.
 
                 kernel(
                     _accelerator.DefaultStream,
@@ -233,23 +232,18 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 int,
                 int,
                 int,
-                int>(SieveKernel2D);
+                int,
+            int,
+            int>(SieveKernel2D);
 
+            var stripe = 0;
             do
             {
                 loop++;
 
-                var batchSize2D = Math.Min(xDim, divisorCount - divisorOffset);
-
-                while (batchSize2D * yDim * 2 <= _computeUnits)
-                    yDim *= 2;
-
-                if (yDim > 255)
-                    yDim = 255;
-
                 kernel2D(
                     _accelerator.DefaultStream,
-                    new Index2D(batchSize2D, yDim),
+                    new Index2D(xDim, yDim),
                     sieveBuffer.View,
                     startBytesBuffer.View,
                     startBitsBuffer.View,
@@ -263,15 +257,18 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     divisorOffset,
                     divisorCount,
                     (int)sieveLength,
-                    yDim);
+                    yDim,
+                    stripe,
+                    num2DLoops);
                 _accelerator.Synchronize();
 
-                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, batchSize2D);
-                grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {batchSize2D}(2D) call, last prime: {lastPrime}");
+                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, xDim);
+                grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {xDim}(2D) call, last prime: {lastPrime}");
 
-                divisorOffset += batchSize2D;
+                //divisorOffset += batchSize2D;
+                stripe++;
 
-            } while (divisorOffset < divisorCount);
+            } while (stripe < num2DLoops);
 
             sieveBuffer.CopyToCPU(sieveWords);
             /*
@@ -353,9 +350,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         int divisorIndexOffset,
         int divisorCount,
         int sieveLength,
-        int yDim)
+        int yDim,
+        int stripe,
+        int num2DLoops)
     {
-        var divisorIndex = index.X + divisorIndexOffset;
+        var divisorIndex = stripe + num2DLoops * index.X + divisorIndexOffset;
         if (divisorIndex >= divisorCount)
             return;
 
@@ -389,7 +388,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         UpdateSieveBytes(sieveBytes, /*workTry, workDo, divisorIndex,*/ newSieveLength, offsetByte, offsetBit, useLongStep, longStepByte, longStepBit, shortStepByte, shortStepBit);
     }
 
-    private static void UpdateSieveBytes(ArrayView<uint> sieveBytes, 
+    private static void UpdateSieveBytes(ArrayView<uint> sieveBytes,
         /*ArrayView<int> workTry, ArrayView<int> workDo, int divisorIndex, */
         int sieveLength, int offsetByte, int offsetBit,
         bool useLongStep, int longStepByte, int longStepBit, int shortStepByte, int shortStepBit)
@@ -397,7 +396,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         while (offsetByte < sieveLength)
         {
             var bitMask = 1u << offsetBit;
-            var oldVal = Atomic.Or(ref sieveBytes[offsetByte], bitMask);
+            /*var oldVal = */
+            Atomic.Or(ref sieveBytes[offsetByte], bitMask);
             /*
             Atomic.Add(ref workTry[divisorIndex], 1);
             if ((oldVal & bitMask) == 0)
