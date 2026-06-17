@@ -3,11 +3,14 @@ using Microsoft.Win32;
 
 namespace ArrayPrimes2022.Sieve;
 
-internal sealed class ComputeSharpSieveBackend : ISieveBackend
+internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
 {
     private static readonly SemaphoreSlim SieveBufferSemaphore = new(1, 1);
 
-    private static readonly GraphicsDevice Device = GraphicsDevice.GetDefault();
+    private static readonly GraphicsDevice? Device = TryGetDevice();
+    private static readonly TimeSpan TimeWaitGoal = new(0, 0, 0, 2);
+    private static TimeSpan _preworkTime;
+    private const int MaxThreadGroupSize = 256;
 
     public string Name => "ComputeSharp";
     public bool IsAvailable => (Device?.ComputeUnits ?? 0) > 0;
@@ -27,14 +30,43 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                               $"\n\twith {device.WavefrontSize} max threads per group");
         }
 
-        _computeUnits = Device.ComputeUnits > int.MaxValue ? int.MaxValue : (int)Device.ComputeUnits;
-        Device.DeviceLost += Device_DeviceLost;
-        Console.WriteLine($"Chosen device: {Device.Name}:{Device.Luid}");
+        if (Device != null)
+        {
+            _computeUnits = Device.ComputeUnits > int.MaxValue ? int.MaxValue : (int)Device.ComputeUnits;
+            Device.DeviceLost += Device_DeviceLost;
+        }
+        Console.WriteLine($"Chosen device: {Device?.Name ?? "none"}:{Device?.Luid}");
     }
 
     private static void Device_DeviceLost(object? sender, DeviceLostEventArgs e)
     {
         Console.WriteLine("Device lost: " + e.Reason);
+    }
+
+    private static GraphicsDevice? TryGetDevice()
+    {
+        try { return GraphicsDevice.GetDefault(); }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"No GPU device found: {ex.Message}");
+            return null;
+        }
+    }
+
+    public TimeSpan GetPreworkTime() => _preworkTime;
+
+    private static void SetPreworkTime(TimeSpan timeWaited)
+    {
+        var miss = TimeWaitGoal - timeWaited;
+        _preworkTime += TimeSpan.FromMilliseconds(miss.TotalMilliseconds / 10);
+        if (_preworkTime.TotalSeconds < 0)
+            _preworkTime = TimeSpan.Zero;
+    }
+
+    public void Dispose()
+    {
+        if (Device != null)
+            Device.DeviceLost -= Device_DeviceLost;
     }
 
     /// <summary>
@@ -118,9 +150,11 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
 
         grl.AppendTimingMark("BeforeSemaphoreWait");
         var semaphore = SieveBufferSemaphore;
+        var timeBeforeWait = DateTime.UtcNow;
         semaphore.Wait();
         try
         {
+            SetPreworkTime(DateTime.UtcNow - timeBeforeWait);
             // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
             grl.AppendTimingMark("AfterSemaphoreWait");
             AllocateAndDispatchSieveBuffers(
@@ -151,29 +185,28 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         int[] startsWithLongStep,
         int divisorCount)
     {
-        using var sieveBuffer = Device.AllocateReadWriteBuffer(sieveWords);
+        var device = Device ?? throw new InvalidOperationException("No GPU device is available.");
+        using var sieveBuffer = device.AllocateReadWriteBuffer(sieveWords);
         var sieveLength = sieveBuffer.Length;
-        using var startBytesBuffer = Device.AllocateReadOnlyBuffer(startBytes);
-        using var startBitsBuffer = Device.AllocateReadOnlyBuffer(startBits);
-        using var shortStepByteBuffer = Device.AllocateReadOnlyBuffer(shortStepBytes);
-        using var shortStepBitBuffer = Device.AllocateReadOnlyBuffer(shortStepBits);
-        using var longStepByteBuffer = Device.AllocateReadOnlyBuffer(longStepBytes);
-        using var longStepBitBuffer = Device.AllocateReadOnlyBuffer(longStepBits);
-        using var startsWithLongStepBuffer = Device.AllocateReadOnlyBuffer(startsWithLongStep);
+        using var startBytesBuffer = device.AllocateReadOnlyBuffer(startBytes);
+        using var startBitsBuffer = device.AllocateReadOnlyBuffer(startBits);
+        using var shortStepByteBuffer = device.AllocateReadOnlyBuffer(shortStepBytes);
+        using var shortStepBitBuffer = device.AllocateReadOnlyBuffer(shortStepBits);
+        using var longStepByteBuffer = device.AllocateReadOnlyBuffer(longStepBytes);
+        using var longStepBitBuffer = device.AllocateReadOnlyBuffer(longStepBits);
+        using var startsWithLongStepBuffer = device.AllocateReadOnlyBuffer(startsWithLongStep);
 
-        // We dispatch the compute shader in batches of _loopSize divisors to avoid overwhelming the GPU with too many threads at once.
-        // Each thread will handle one divisor and mark its multiples in the sieve.
-        // Dispatch the compute kernel in batches of _loopSize divisors
-        var yDim = 32;//_accelerator.WarpSize;
+        // Dispatch the compute kernel in batches of divisors.
+        // Use the device's wavefront size as yDim so AMD (64) and NVIDIA (32) are handled correctly.
+        var yDim = (int)device.WavefrontSize;
         var xDim = _computeUnits / yDim;
-        var num2DLoops = 4.0 + (1.0 / 4.0);
-        var divisorCount1D = divisorCount - (int)(num2DLoops * xDim);
+        // Reserve num2DLoops*xDim divisors for the striped 2D loop, plus fixed counts for transitional passes.
+        const int num2DLoops = 4;
+        var divisorCount1D = divisorCount - num2DLoops * xDim - _computeUnits / 2 - _computeUnits / 4;
         var divisorOffset = 0;
         var loop = 0;
-        divisorCount1D -= _computeUnits / 2;
-        divisorCount1D -= _computeUnits / 4;
-        var reportAt = divisorCount1D - 4 * _computeUnits;
-        var maxBatchSize = _computeUnits * 256;
+        var reportAt = divisorCount1D - 5 * _computeUnits;
+        var maxBatchSize = _computeUnits * MaxThreadGroupSize;
         do
         {
             loop++;
@@ -183,7 +216,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 batchSize = _computeUnits;
             batchSize = Math.Min(batchSize, divisorCount1D - divisorOffset); // don't run over the end.
 
-            Device.For(batchSize, new ComputeSharpSieveShader(
+            device.For(batchSize, new ComputeSharpSieveShader(
                 sieveBuffer,
                 startBytesBuffer,
                 startBitsBuffer,
@@ -206,7 +239,8 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
         } while (divisorOffset < divisorCount1D);
         grl.AppendTimingMark("After Device.For (1D) calls");
 
-        Device.For(_computeUnits / 2, 2, new ComputeSharpSieveShader2D(
+        // Transitional passes: primes large enough to benefit from 2 or 4 Y-threads but not a full wavefront.
+        device.For(_computeUnits / 2, 2, new ComputeSharpSieveShader2D(
             sieveBuffer,
             startBytesBuffer,
             startBitsBuffer,
@@ -218,11 +252,11 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
             divisorOffset,
             divisorCount,
             sieveLength,
-            2));
+            2, 0, 1));
         grl.AppendTimingMark($"After Device.For 1, 2, {_computeUnits / 2}(2D) call");
         divisorOffset += _computeUnits / 2;
 
-        Device.For(_computeUnits / 4, 4, new ComputeSharpSieveShader2D(
+        device.For(_computeUnits / 4, 4, new ComputeSharpSieveShader2D(
             sieveBuffer,
             startBytesBuffer,
             startBitsBuffer,
@@ -234,19 +268,18 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
             divisorOffset,
             divisorCount,
             sieveLength,
-            4));
+            4, 0, 1));
         grl.AppendTimingMark($"After Device.For 1, 4, {_computeUnits / 4}(2D) call");
         divisorOffset += _computeUnits / 4;
 
-        loop = 0;
+        // Striped 2D passes: distribute the num2DLoops*xDim largest divisors evenly across threads.
+        // Thread X in stripe S handles divisor at index: S + num2DLoops*X + divisorOffset.
+        // This interleaves fast and slow primes across all threads rather than clustering them.
+        var stripe = 0;
         do
         {
             loop++;
-            var batchSize2D = Math.Min(xDim, divisorCount - divisorOffset);
-
-            while (batchSize2D * yDim * 2 <= _computeUnits) yDim *= 2;
-
-            Device.For(batchSize2D, yDim, new ComputeSharpSieveShader2D(
+            device.For(xDim, yDim, new ComputeSharpSieveShader2D(
                 sieveBuffer,
                 startBytesBuffer,
                 startBitsBuffer,
@@ -258,13 +291,13 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend
                 divisorOffset,
                 divisorCount,
                 sieveLength,
-                yDim));
-            var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, batchSize2D);
-            grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {batchSize2D}(2D) call, last prime: {lastPrime}");
-
-            divisorOffset += batchSize2D;
+                yDim, stripe, num2DLoops));
+            var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, xDim);
+            grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {xDim}(2D) stripe {stripe}, last prime: {lastPrime}");
+            stripe++;
         }
-        while (divisorOffset < divisorCount);
+        while (stripe < num2DLoops);
+        divisorOffset += num2DLoops * xDim;
         grl.AppendTimingMark("After Device.For (2D) calls");
 
         sieveBuffer.CopyTo(sieveWords);
@@ -382,6 +415,8 @@ internal readonly partial struct ComputeSharpSieveShader2D : IComputeShader
     private readonly int divisorCount;
     private readonly int sieveLength;
     private readonly int yDim;
+    private readonly int stripe;
+    private readonly int num2DLoops;
 
 #pragma warning disable IDE0290 // Use primary constructor
     public ComputeSharpSieveShader2D(
@@ -397,7 +432,9 @@ internal readonly partial struct ComputeSharpSieveShader2D : IComputeShader
         int divisorIndexOffset,
         int divisorCount,
         int sieveLength,
-        int yDim)
+        int yDim,
+        int stripe,
+        int num2DLoops)
     {
         this.sieveBytes = sieveBytes;
         this.startBytes = startBytes;
@@ -411,11 +448,13 @@ internal readonly partial struct ComputeSharpSieveShader2D : IComputeShader
         this.divisorCount = divisorCount;
         this.sieveLength = sieveLength;
         this.yDim = yDim;
+        this.stripe = stripe;
+        this.num2DLoops = num2DLoops;
     }
 
     public void Execute()
     {
-        var divisorIndex = ThreadIds.X + divisorIndexOffset;
+        var divisorIndex = stripe + num2DLoops * ThreadIds.X + divisorIndexOffset;
         if (divisorIndex >= divisorCount)
             return;
 

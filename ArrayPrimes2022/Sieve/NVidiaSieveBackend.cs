@@ -3,6 +3,9 @@ using ILGPU;
 using ILGPU.Runtime;
 using ILGPU.Runtime.Cuda;
 
+using SieveKernel1DDelegate = System.Action<ILGPU.Runtime.AcceleratorStream, ILGPU.Index1D, ILGPU.ArrayView<uint>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, int, int, int>;
+using SieveKernel2DDelegate = System.Action<ILGPU.Runtime.AcceleratorStream, ILGPU.Index2D, ILGPU.ArrayView<uint>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, int, int, int, int, int, int>;
+
 namespace ArrayPrimes2022.Sieve;
 
 internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
@@ -11,11 +14,16 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
     private readonly Context? _context;
     private readonly CudaAccelerator? _accelerator;
+    private readonly SieveKernel1DDelegate? _kernel;
+    private readonly SieveKernel2DDelegate? _kernel2D;
+
     public bool IsAvailable => _context != null && _accelerator != null;
 
     public string Name => "NVIDIA CUDA";
 
     private static int _computeUnits;
+    private static readonly TimeSpan TimeWaitGoal = new(0, 0, 0, 2);
+    private static TimeSpan _preworkTime;
 
     public NVidiaSieveBackend()
     {
@@ -34,6 +42,37 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             Console.WriteLine($"\twith {_accelerator.MemorySize:N0} bytes of memory");
             Console.WriteLine($"\twith {_accelerator.WarpSize} warp size");
             Console.WriteLine($"\tTotal compute units: {_computeUnits}");
+
+            _kernel = _accelerator.LoadAutoGroupedKernel<
+                Index1D,
+                ArrayView<uint>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                int,
+                int,
+                int>(SieveKernel);
+
+            _kernel2D = _accelerator.LoadAutoGroupedKernel<
+                Index2D,
+                ArrayView<uint>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                ArrayView<int>,
+                int,
+                int,
+                int,
+                int,
+                int,
+                int>(SieveKernel2D);
         }
         catch (Exception ex)
         {
@@ -130,7 +169,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         int[] startsWithLongStep,
         int divisorCount)
     {
-        if (!IsAvailable || _accelerator == null)
+        if (!IsAvailable || _accelerator == null || _kernel == null || _kernel2D == null)
             throw new InvalidOperationException("CUDA accelerator is not available.");
 
         grl.AppendTimingMark("BeforeSemaphoreWait");
@@ -157,23 +196,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             //using var workTryBuffer = _accelerator.Allocate1D(workTry);
             //using var workDoBuffer = _accelerator.Allocate1D(workDo);
 
-            // Load and compile the kernel (cached after first call)
-            var kernel = _accelerator.LoadAutoGroupedKernel<
-                Index1D,
-                ArrayView<uint>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                //ArrayView<int>,
-                //ArrayView<int>,
-                int,
-                int,
-                int>(SieveKernel);
-
             // Dispatch the compute kernel in batches of _loopSize divisors
             var yDim = _accelerator.WarpSize;
             var xDim = _computeUnits / yDim;
@@ -188,10 +210,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 loop++;
 
                 var batchSize = Math.Min(maxBatchSize, (divisorCount1D - divisorOffset) / 2); // do half, but not more than the max for a single 1D batch
-                if (batchSize < _computeUnits) batchSize = _computeUnits; // but don't do less than the number of compute units.  This prevents getting stuck in this loop with very small batch sizes.
+                if (batchSize < _computeUnits)
+                    batchSize = _computeUnits; // but don't do less than the number of compute units.  This prevents getting stuck in this loop with very small batch sizes.
                 batchSize = Math.Min(batchSize, divisorCount1D - divisorOffset); // don't run over the planned end of 1D loop sieving.
 
-                kernel(
+                _kernel!(
                     _accelerator.DefaultStream,
                      new Index1D(batchSize),
                     sieveBuffer.View,
@@ -219,31 +242,12 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             } while (divisorOffset < divisorCount1D);
             grl.AppendTimingMark("After all kernel(1D) calls");
 
-            var kernel2D = _accelerator.LoadAutoGroupedKernel<
-                Index2D,
-                ArrayView<uint>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                ArrayView<int>,
-                //ArrayView<int>,
-                //ArrayView<int>,
-                int,
-                int,
-                int,
-                int,
-            int,
-            int>(SieveKernel2D);
-
             var stripe = 0;
             do
             {
                 loop++;
 
-                kernel2D(
+                _kernel2D!(
                     _accelerator.DefaultStream,
                     new Index2D(xDim, yDim),
                     sieveBuffer.View,
@@ -267,10 +271,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, xDim);
                 grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {xDim}(2D) call, last prime: {lastPrime}");
 
-                //divisorOffset += batchSize2D;
                 stripe++;
 
             } while (stripe < num2DLoops);
+            divisorOffset += num2DLoops * xDim;
+            grl.AppendTimingMark("After all kernel(2D) calls");
 
             sieveBuffer.CopyToCPU(sieveWords);
             /*
@@ -297,15 +302,9 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
         }
     }
 
-    private static TimeSpan _preworkTime;
-    private static readonly TimeSpan TimeWaitGoal = new(0, 0, 0, 2);
+    public TimeSpan GetPreworkTime() => _preworkTime;
 
-    public TimeSpan GetPreworkTime()
-    {
-        return _preworkTime;
-    }
-
-    private void SetPreworkTime(TimeSpan timeWaited)
+    private static void SetPreworkTime(TimeSpan timeWaited)
     {
         var miss = TimeWaitGoal - timeWaited;
         _preworkTime += TimeSpan.FromMilliseconds(miss.TotalMilliseconds / 10);
