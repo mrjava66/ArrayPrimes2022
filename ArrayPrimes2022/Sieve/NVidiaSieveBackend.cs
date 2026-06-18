@@ -268,13 +268,12 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     num2DLoops);
                 _accelerator.Synchronize();
 
-                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, xDim);
+                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, num2DLoops * xDim + stripe);
                 grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {xDim}(2D) call, last prime: {lastPrime}");
 
                 stripe++;
 
             } while (stripe < num2DLoops);
-            divisorOffset += num2DLoops * xDim;
             grl.AppendTimingMark("After all kernel(2D) calls");
 
             sieveBuffer.CopyToCPU(sieveWords);
@@ -294,7 +293,6 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             }
             grl.AppendTimingMark(sa.ToString());
             */
-            grl.AppendTimingMark("After sieveBuffer.CopyToCPU");
         }
         finally
         {
@@ -315,6 +313,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
     private static int LastPrimeSieved(int[] shortStepBytes, int[] shortStepBits, int divisorOffset, int batchSize)
     {
         var lastPos = divisorOffset + batchSize - 1;
+        if (lastPos >= shortStepBytes.Length)
+            lastPos = shortStepBytes.Length - 1;
         var by = shortStepBytes[lastPos];
         var bi = shortStepBits[lastPos];
         var lastPrime = by * 32 + bi;

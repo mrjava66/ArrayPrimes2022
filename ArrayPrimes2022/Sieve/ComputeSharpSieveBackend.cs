@@ -1,5 +1,4 @@
 using ComputeSharp;
-using Microsoft.Win32;
 
 namespace ArrayPrimes2022.Sieve;
 
@@ -165,6 +164,11 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
             longStepBytes, longStepBits,
             startsWithLongStep, divisorCount);
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            throw;
+        }
         finally
         {
             semaphore.Release();
@@ -272,7 +276,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
         grl.AppendTimingMark($"After Device.For 1, 4, {_computeUnits / 4}(2D) call");
         divisorOffset += _computeUnits / 4;
 
-        // Striped 2D passes: distribute the num2DLoops*xDim largest divisors evenly across threads.
+        // Striped 2D passes: distribute the num2DLoops*xDim smallest divisors evenly across threads.
         // Thread X in stripe S handles divisor at index: S + num2DLoops*X + divisorOffset.
         // This interleaves fast and slow primes across all threads rather than clustering them.
         var stripe = 0;
@@ -292,12 +296,11 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
                 divisorCount,
                 sieveLength,
                 yDim, stripe, num2DLoops));
-            var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, xDim);
+            var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, num2DLoops * xDim + stripe);
             grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {xDim}(2D) stripe {stripe}, last prime: {lastPrime}");
             stripe++;
         }
         while (stripe < num2DLoops);
-        divisorOffset += num2DLoops * xDim;
         grl.AppendTimingMark("After Device.For (2D) calls");
 
         sieveBuffer.CopyTo(sieveWords);
@@ -306,6 +309,8 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
     private static int LastPrimeSieved(int[] shortStepBytes, int[] shortStepBits, int divisorOffset, int batchSize)
     {
         var lastPos = divisorOffset + batchSize - 1;
+        if (lastPos >= shortStepBytes.Length)
+            lastPos = shortStepBytes.Length - 1;
         var by = shortStepBytes[lastPos];
         var bi = shortStepBits[lastPos];
         var lastPrime = by * 32 + bi;
