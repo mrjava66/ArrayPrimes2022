@@ -1003,7 +1003,9 @@ internal static class ProgramClass
                 var prework = NVidiaSieveBackendInstance.GetPreworkTime();
                 if (prework.TotalSeconds > 1)
                 {
+                    var oldDivisorPosition = divisorPosition;
                     divisorPosition = CpuSieveBackendInstance.ExecuteSome(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0, prework);
+                    grl.AppendTimingMark($"AfterPreworkSieve divisorPosition: {divisorPosition}; Old: {oldDivisorPosition}");
                 }
             }
             _activeSieveBackend.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);

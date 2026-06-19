@@ -1,10 +1,34 @@
-using System.Text;
 using ILGPU;
 using ILGPU.Runtime;
 using ILGPU.Runtime.Cuda;
 
-using SieveKernel1DDelegate = System.Action<ILGPU.Runtime.AcceleratorStream, ILGPU.Index1D, ILGPU.ArrayView<uint>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, int, int, int>;
-using SieveKernel2DDelegate = System.Action<ILGPU.Runtime.AcceleratorStream, ILGPU.Index2D, ILGPU.ArrayView<uint>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, ILGPU.ArrayView<int>, int, int, int, int, int, int>;
+using SieveKernel1DDelegate = System.Action<ILGPU.Runtime.AcceleratorStream,
+    ILGPU.Index1D,
+    ILGPU.ArrayView<uint>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    //ILGPU.ArrayView<int>,
+    //ILGPU.ArrayView<int>,
+    int, int, int>;
+
+using SieveKernel2DDelegate = System.Action<ILGPU.Runtime.AcceleratorStream,
+    ILGPU.Index2D,
+    ILGPU.ArrayView<uint>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    ILGPU.ArrayView<int>,
+    //ILGPU.ArrayView<int>,
+    //ILGPU.ArrayView<int>,
+    int, int, int, int, int, int>;
 
 namespace ArrayPrimes2022.Sieve;
 
@@ -53,6 +77,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 ArrayView<int>,
                 ArrayView<int>,
                 ArrayView<int>,
+                //ILGPU.ArrayView<int>,
+                //ILGPU.ArrayView<int>,
                 int,
                 int,
                 int>(SieveKernel);
@@ -67,6 +93,8 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                 ArrayView<int>,
                 ArrayView<int>,
                 ArrayView<int>,
+                //ILGPU.ArrayView<int>,
+                //ILGPU.ArrayView<int>,
                 int,
                 int,
                 int,
@@ -182,7 +210,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             // we want to include the time spent waiting for the semaphore in our timing, as it is part of the overall execution time of this method.
             grl.AppendTimingMark("AfterSemaphoreWait");
             using var sieveBuffer = _accelerator.Allocate1D(sieveWords);
-            var sieveLength = sieveBuffer.Length;
+            var sieveLength = (int)sieveBuffer.Length;
             using var startBytesBuffer = _accelerator.Allocate1D(startBytes);
             using var startBitsBuffer = _accelerator.Allocate1D(startBits);
             using var shortStepBytesBuffer = _accelerator.Allocate1D(shortStepBytes);
@@ -205,6 +233,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             var loop = 0;
             var reportAt = divisorCount1D - 5 * _computeUnits;
             var maxBatchSize = _computeUnits * _accelerator.MaxNumThreadsPerGroup;
+            grl.AppendTimingMark($"After buffer allocation");
             do
             {
                 loop++;
@@ -216,7 +245,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
                 _kernel!(
                     _accelerator.DefaultStream,
-                     new Index1D(batchSize),
+                    new Index1D(batchSize),
                     sieveBuffer.View,
                     startBytesBuffer.View,
                     startBitsBuffer.View,
@@ -229,7 +258,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     //workDoBuffer.View,
                     divisorOffset,
                     divisorCount,
-                    (int)sieveLength);
+                    sieveLength);
                 _accelerator.Synchronize();
 
                 if (divisorOffset >= reportAt)
@@ -262,13 +291,13 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
                     //workDoBuffer.View,
                     divisorOffset,
                     divisorCount,
-                    (int)sieveLength,
+                    sieveLength,
                     yDim,
                     stripe,
                     num2DLoops);
                 _accelerator.Synchronize();
 
-                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, num2DLoops * xDim + stripe);
+                var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, num2DLoops * (xDim - 1) + stripe);
                 grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {xDim}(2D) call, last prime: {lastPrime}");
 
                 stripe++;
