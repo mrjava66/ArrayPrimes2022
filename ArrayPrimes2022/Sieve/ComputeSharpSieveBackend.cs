@@ -56,8 +56,11 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
 
     private static void SetPreworkTime(TimeSpan timeWaited)
     {
-        var miss = TimeWaitGoal - timeWaited;
-        _preworkTime += TimeSpan.FromMilliseconds(miss.TotalMilliseconds / 10);
+        var miss = timeWaited - TimeWaitGoal;
+        var divisor = ProgramClass.TaskLimit * 2;
+        if (divisor <= 0)
+            divisor = 10;
+        _preworkTime += TimeSpan.FromMilliseconds(miss.TotalMilliseconds / divisor);
         if (_preworkTime.TotalSeconds < 0)
             _preworkTime = TimeSpan.Zero;
     }
@@ -276,7 +279,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
         grl.AppendTimingMark($"After Device.For 1, 4, {_computeUnits / 4}(2D) call");
         divisorOffset += _computeUnits / 4;
 
-        // Striped 2D passes: distribute the num2DLoops*xDim smallest divisors evenly across threads.
+        // Striped 2D passes: distribute the num2DLoops*xDim divisors evenly across threads.
         // Thread X in stripe S handles divisor at index: S + num2DLoops*X + divisorOffset.
         // This interleaves fast and slow primes across all threads rather than clustering them.
         var stripe = 0;
@@ -296,7 +299,7 @@ internal sealed class ComputeSharpSieveBackend : ISieveBackend, IDisposable
                 divisorCount,
                 sieveLength,
                 yDim, stripe, num2DLoops));
-            var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, num2DLoops * xDim + stripe);
+            var lastPrime = LastPrimeSieved(shortStepBytes, shortStepBits, divisorOffset, num2DLoops * (xDim - 1) + stripe);
             grl.AppendTimingMark($"After Device.For {loop}, {yDim}, {xDim}(2D) stripe {stripe}, last prime: {lastPrime}");
             stripe++;
         }

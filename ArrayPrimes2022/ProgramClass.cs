@@ -48,6 +48,7 @@ internal static class ProgramClass
     ///     How many tasks to run concurrently.  Normally overriden in the .config.
     /// </summary>
     private static int _taskLimit = 3;
+    public static int TaskLimit => _taskLimit;
 
     // List of Blocks of 128*Two32 numbers (1/2T) that contain a first gap.
     // This list REQUIRES a block size of 128 to be correct.
@@ -998,15 +999,22 @@ internal static class ProgramClass
 
         try
         {
+            var prework = new TimeSpan(0);
+
             if (_activeSieveBackend == NVidiaSieveBackendInstance)
             {
-                var prework = NVidiaSieveBackendInstance.GetPreworkTime();
-                if (prework.TotalSeconds > 1)
-                {
-                    var oldDivisorPosition = divisorPosition;
-                    divisorPosition = CpuSieveBackendInstance.ExecuteSome(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0, prework);
-                    grl.AppendTimingMark($"AfterPreworkSieve divisorPosition: {divisorPosition}; Old: {oldDivisorPosition}");
-                }
+                prework = NVidiaSieveBackendInstance.GetPreworkTime();
+            }
+            else if (_activeSieveBackend == ComputeSharpSieveBackendInstance)
+            {
+                prework = ComputeSharpSieveBackendInstance.GetPreworkTime();
+            }
+
+            if (prework.TotalSeconds > 1.0)
+            {
+                var oldDivisorPosition = divisorPosition;
+                divisorPosition = CpuSieveBackendInstance.ExecuteSome(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0, prework);
+                grl.AppendTimingMark($"AfterPreworkSieve divisorPosition: {divisorPosition}; Old: {oldDivisorPosition}");
             }
             _activeSieveBackend.Execute(grl, loopMinCheckedValue, fdl, offsets, divisorsFillPosition, divisorPosition, bytes0);
         }

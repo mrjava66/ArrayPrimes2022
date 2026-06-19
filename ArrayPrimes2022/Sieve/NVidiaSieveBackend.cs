@@ -202,7 +202,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
         grl.AppendTimingMark("BeforeSemaphoreWait");
         var semaphore = SieveBufferSemaphore;
-        DateTime timeBeforeWait = DateTime.UtcNow;
+        var timeBeforeWait = DateTime.UtcNow;
         semaphore.Wait();
         try
         {
@@ -233,7 +233,7 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
             var loop = 0;
             var reportAt = divisorCount1D - 5 * _computeUnits;
             var maxBatchSize = _computeUnits * _accelerator.MaxNumThreadsPerGroup;
-            grl.AppendTimingMark($"After buffer allocation");
+            grl.AppendTimingMark("After buffer allocation");
             do
             {
                 loop++;
@@ -333,8 +333,11 @@ internal sealed class NVidiaSieveBackend : ISieveBackend, IDisposable
 
     private static void SetPreworkTime(TimeSpan timeWaited)
     {
-        var miss = TimeWaitGoal - timeWaited;
-        _preworkTime += TimeSpan.FromMilliseconds(miss.TotalMilliseconds / 10);
+        var miss = timeWaited - TimeWaitGoal;
+        var divisor = ProgramClass.TaskLimit * 2;
+        if (divisor <= 0)
+            divisor = 10;
+        _preworkTime += TimeSpan.FromMilliseconds(miss.TotalMilliseconds / divisor);
         if (_preworkTime.TotalSeconds < 0)
             _preworkTime = TimeSpan.Zero;
     }
